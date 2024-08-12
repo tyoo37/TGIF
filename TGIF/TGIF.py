@@ -277,7 +277,6 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
     background_mask = maskbool.copy().astype('bool')
     #background_mask[sub_bbox_slice(mask.bbox, smaller_mask.bbox)] &= ~smaller_mask.data.astype('bool')
     masked_cutout = masked_data[background_mask]
-    print('hohohohoh',masked_cutout.shape)
 
     if filter_bright_pixels:
         source_region = EllipsePixelRegion(center=PixCoord(x=xcen, y=ycen),
@@ -312,6 +311,32 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
 
 
 def residual(params, x, y, image, x_center, y_center, norm, rad=10, lambda_factor=3e4):
+    """
+    this residual function is the function that is required to be minimized
+    
+    args
+    -----
+    params: lmfit.Parameters
+        the parameters of the gaussian model
+    x, y: 2D array
+        the pixel coordinates of the image
+    image: 2D array
+        the image data (recommended to use very small central cutout of the image for better fit)
+    x_center, y_center: float
+        the pixel coordinates of the center of the gaussian
+    norm: float
+        the normalization of the gaussian
+    rad: float
+        the radius of the circle region
+    lambda_factor: float
+        a factor to control the degree of suppression of the negative residuals
+    
+    return
+    -------
+    masked_offset: 2D array
+        the masked residual of the image
+    
+    """
     model = gaussian2d(x, y, x_center, y_center, norm, **params)
     center = PixCoord(x_center, y_center)
     xx, yy = np.mgrid[:model.shape[0], :model.shape[1]]
@@ -329,6 +354,51 @@ def residual(params, x, y, image, x_center, y_center, norm, rad=10, lambda_facto
 
 def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, maxrad=1, background=None, plot=False, 
                         do_subpixel_adjust=True, iterstep=0.01, adjust_th=0.1, maxnumiter=10, numpoints=199):
+    """
+    fit the gaussian model for a single source
+    args
+    -----
+    positions: 2D array
+        the pixel coordinates of the source in the original image, not cutout
+    data: 2D array
+        the image data
+    wcsNB: WCS
+        the wcs of the image
+    beam: radio_beam.Beam
+        the beam of the image
+    pixel_scale: astropy.unit
+        the pixel scale of the image
+    maxrad: float
+        the maximum radius of the cutout in units of the major axis of the beam
+    background: float
+        the background of the image
+    plot: bool
+        plot is True if you want to plot the fitting results
+    do_subpixel_adjust: bool
+        do_subpixel_adjust is True if you want to do subpixel adjustment
+    iterstep: float
+        the step size of the subpixel adjustment
+    adjust_th: float
+        the threshold of the subpixel adjustment
+    maxnumiter: int
+        the maximum number of iterations for the subpixel adjustment
+    numpoints: int
+        the number of points for the 1D profile, so the length of the 1D profile is iterstep*numpoints
+
+    return
+    -------
+    cutout: Cutout2D
+        the cutout of the source
+    results: lmfit.MinimizerResult
+        the fitting results
+    xcen: float
+        the x position of the center of the source (in the original image)
+    ycen: float
+        the y position of the center of the source (in the original image)
+    adjusted_peakval_min: float
+
+
+    """
     beam_pa = beam.pa
     numpix_major = beam.major.value/pixel_scale.value
     numpix_minor = beam.minor.value/pixel_scale.value
@@ -419,15 +489,10 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, maxrad=1, bac
         ax1.add_patch(ellipse)
 
         ax2 = fig.add_axes([0.33,0,0.33,1])
-        imshow2=ax2.imshow(mask.multiply(model), origin='lower', cmap=plt.get_cmap('inferno'), norm=colors.PowerNorm(gamma=0.5,
+        imshow2 = ax2.imshow(mask.multiply(model), origin='lower', cmap=plt.get_cmap('inferno'), norm=colors.PowerNorm(gamma=0.5,
                                             vmin=0,vmax=np.nanmax(masked_image)))
         ax3 = fig.add_axes([0.66,0,0.33,1])
-        #print(np.nanmin(residual(results.params, x,y, cutout_data)), np.nanmax(residual(results.params, x,y, cutout_data)))
-        #offset = cutout_data - model
-        #offset[offset>0] = 0
-        #offset[offset<0] = np.abs(offset[offset<0])*(1+np.exp(1*np.abs(offset[offset<0])))
-        #extent = (0,cutout_data.shape[1],0,cutout_data.shape[0])
-        imshow3 =  ax3.imshow(masked_offset, origin='lower', cmap=plt.get_cmap('inferno'), norm=colors.PowerNorm(gamma=0.5,
+        imshow3 = ax3.imshow(masked_offset, origin='lower', cmap=plt.get_cmap('inferno'), norm=colors.PowerNorm(gamma=0.5,
                                             vmin=0,vmax=np.nanmax(masked_offset)))
         
         axins1 = inset_axes(ax1, width="80%", height="7%", loc='upper center')
@@ -502,7 +567,7 @@ def get_profile1d(cutout_data, xcen, ycen, inclination, numpoints=199, distarr_s
    
     return distarr, profile1d_maj, profile1d_min
 
-def plot_for_individual(data,  xcen, ycen, pa, major, minor, peak, pixel_scale, background, 
+def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, major, minor, peak, pixel_scale, background, 
                          major_err, minor_err, 
                          beam, wcsNB, maxrad=4,
                         idx=0, issqrt=True, iterstep=0.01,
@@ -592,8 +657,10 @@ def plot_for_individual(data,  xcen, ycen, pa, major, minor, peak, pixel_scale, 
     ax2.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep, numpoints)
     ax3.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep, numpoints)
     
-    ax1.set_ylim(-background, 1.1*np.nanmax(profile1d_maj))
-    ax2.set_ylim(-background, 1.1*np.nanmax(profile1d_maj))
+    ax1.set_ylim(np.min((np.nanmin(profile1d_maj), np.nanmin(gaussian(distarr, 0, minor, peak)))),
+     np.max((1.1*np.nanmax(profile1d_maj), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))))
+    ax2.set_ylim(np.min((np.nanmin(profile1d_maj), np.nanmin(gaussian(distarr, 0, minor, peak)))),
+     np.max((1.1*np.nanmax(profile1d_maj), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))))
     ax3.set_ylim(1.1*np.nanmin([np.nanmin(res_maj),np.nanmin(res_min)]), 1.1*np.nanmax([np.nanmax(res_maj),np.nanmax(res_min)]))
     ax1.text(-(numpoints-1)/2*iterstep*0.9, np.nanmax(profile1d_maj), '#%d'%idx, fontsize=30)
     major_fwhm = major * 2*np.sqrt(2*np.log(2))
@@ -623,7 +690,8 @@ def plot_for_individual(data,  xcen, ycen, pa, major, minor, peak, pixel_scale, 
     ax4.add_patch(outer_annulus)
     
     ax4.scatter(xcen_cutout-0.5*cutout_data.shape[0], ycen_cutout-0.5*cutout_data.shape[0], marker='x', c='cyan')
-    #ax4.scatter(xcen_cutout+ adjusted_pos_x, ycen_cutout+ adjusted_pos_y, marker='x', c='r')
+    ax4.scatter(xcen_original - cutout.xmin_original - 0.5*cutout_data.shape[0] , 
+                ycen_original - cutout.ymin_original - 0.5*cutout_data.shape[1], marker='x', c='r')
 
     add_beam(ax4,-0.8*(maxrad*numpix_major+1)/2,-0.8*(maxrad*numpix_major+1)/2, 
                 beam, pixel_scale, square=True, square_size=6000)
@@ -854,7 +922,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         #peak_err = results.params['norm'].stderr
 
 
-        plot_for_individual(data, xcen, ycen, pa, fitted_major, fitted_minor, peak, pixel_scale, bkg, fitted_major_err, fitted_minor_err,  
+        plot_for_individual(data, xcen, ycen, peakxy[i,0], peakxy[i,1], pa, fitted_major, fitted_minor, peak, pixel_scale, bkg, fitted_major_err, fitted_minor_err,  
                             beam, wcsNB,
                             idx=i, issqrt=issqrt,
                             vmin=vmin, vmax=vmax, 
