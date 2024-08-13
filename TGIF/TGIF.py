@@ -110,7 +110,7 @@ def slice_bbox_from_bbox(bbox1, bbox2):
     return view1,view2
 
 def subpixel_adjustment(profile1d, distarr, inclination,numpix_adjust=11,
-                        verbose=False, isstrict=False,small_value=2e-7, tolerance=5):
+                        verbose=False, isstrict=False,small_value=2e-7, tolerance=5, test_plot=False):
     
     half_numpoints = int(len(profile1d)/2)
     left_to_peak = half_numpoints-int(numpix_adjust/2)
@@ -135,12 +135,15 @@ def subpixel_adjustment(profile1d, distarr, inclination,numpix_adjust=11,
     distarr_step = np.abs(distarr[1]-distarr[0])
 
     try:
-        popt, pcov = curve_fit(gaussian, pixels_around_peak, profiles_around_peak, bounds=((peakpos-distarr_step/2, 0, np.max(profiles_around_peak)-small_value),
-                                                                                           (peakpos+distarr_step/2, np.inf,0.999999999*np.max(profiles_around_peak))))
+        popt, pcov = curve_fit(gaussian, pixels_around_peak, profiles_around_peak, 
+                               bounds=((peakpos-distarr_step/2, 0, np.max(profiles_around_peak)-small_value),
+                                        (peakpos+distarr_step/2, np.inf,0.999999999*np.max(profiles_around_peak))))
         adjusted_offset = popt[0]
         adjusted_peakval = popt[2]                                                                               
     except:
         print('fitting failed in subpixel adjustment')
+        print(np.max(profiles_around_peak)-small_value, 0.999999999*np.max(profiles_around_peak))
+        adjusted_offset = popt[0]
         adjusted_offset=0
         adjusted_peakval=profiles_around_peak[int(len(profiles_around_peak)/2)]-small_value
     print('adjusted_offset', adjusted_offset)
@@ -169,6 +172,14 @@ def subpixel_adjustment(profile1d, distarr, inclination,numpix_adjust=11,
         print(adjusted_offset_x,adjusted_offset_y)
         raise ValueError('offset cannot excceed 0.5')
     """
+    if test_plot:
+        fig = plt.figure(figsize=(6,6))
+        ax1 = fig.add_axes([0,0,1,1])
+        ax1.plot(distarr, profile1d, label='1D profile',lw=4)
+        ax1.plot(distarr, gaussian(distarr, *popt), label='fit',lw=4)
+        ax1.legend()
+        plt.show()
+        plt.close()
     if verbose:
         print('adjusted_offset, adjusted_offset_x, adjusted_offset_y, adjusted_peakval, pcov = ', 
           adjusted_offset, adjusted_offset_x, adjusted_offset_y, adjusted_peakval, pcov)
@@ -348,7 +359,6 @@ def residual(params, x, y, image, x_center, y_center, norm, rad=10, lambda_facto
     masked_dist = mask.multiply(dist)
     #masked_offset[masked_offset<0] = 100*masked_offset[masked_offset<0]
     masked_offset[masked_offset<0] = masked_offset[masked_offset<0]*np.exp(lambda_factor*np.abs(masked_offset[masked_offset<0]))
-    masked_offset = masked_offset / (masked_dist+1)**(0.5)
     return masked_offset
     
 
@@ -356,6 +366,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, maxrad=1, bac
                         do_subpixel_adjust=True, iterstep=0.01, adjust_th=0.1, maxnumiter=10, numpoints=199):
     """
     fit the gaussian model for a single source
+
     args
     -----
     positions: 2D array
@@ -851,6 +862,15 @@ def save_fitting_results( fitted_major, fitted_minor, peak, major_err, minor_err
                        ))
     tab.write(savedir, format='fits', overwrite=True)
 
+def redefine_center(img, positions, searching_rad=10):
+    """
+    find the peak of the image if the original source position is not at the peak.
+    """
+
+    cutout = Cutout2D(img, positions, (searching_rad, searching_rad))
+    xcen, ycen = np.unravel_index(np.nanargmax(cutout.data), img.shape)
+    
+    return xcen, ycen
 
 
 def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
@@ -883,7 +903,8 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             pa_err_arr.append(np.nan)
             continue
         
-        positions = (peakxy[i,0], peakxy[i,1])
+        positions_original = (peakxy[i,0], peakxy[i,1])
+        positions = redefine_center(data, positions_original)
         cutout_small, results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, plot=False)
         popt = results.params
         print('popt_init',popt, cutout_small.shape)
