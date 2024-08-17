@@ -109,7 +109,7 @@ def slice_bbox_from_bbox(bbox1, bbox2):
    
     return view1,view2
 
-def subpixel_adjustment(profile1d, distarr, inclination,numpix_adjust=11,
+def subpixel_adjustment(profile1d, distarr, inclination, vec_from_cen, numpix_adjust=11,
                         verbose=False, isstrict=False,small_value=2e-7, tolerance=5, test_plot=False):
     
     half_numpoints = int(len(profile1d)/2)
@@ -147,11 +147,12 @@ def subpixel_adjustment(profile1d, distarr, inclination,numpix_adjust=11,
         adjusted_offset=0
         adjusted_peakval=profiles_around_peak[int(len(profiles_around_peak)/2)]-small_value
     print('adjusted_offset', adjusted_offset)
+    """
     if np.abs(adjusted_offset)>tolerance:
         print('the peak is made at another pixel')
         adjusted_offset=0
         adjusted_peakval=profiles_around_peak[int(len(profiles_around_peak)/2)]-small_value
-
+    """
         
     """
     if isstrict and adjusted_offset>np.sqrt(2)/2:
@@ -166,6 +167,13 @@ def subpixel_adjustment(profile1d, distarr, inclination,numpix_adjust=11,
     """
     adjusted_offset_x = adjusted_offset * np.cos(inclination)
     adjusted_offset_y = adjusted_offset * np.sin(inclination)
+
+    xoffset = vec_from_cen[0] + adjusted_offset_x
+    yoffset = vec_from_cen[1] + adjusted_offset_y
+    print(inclination, vec_from_cen[0], adjusted_offset_x, xoffset, vec_from_cen[1], adjusted_offset_y, yoffset)
+
+    
+
     #print('peak in adjust', adjusted_peakval, np.max(profiles_around_peak))
     """
     if any([np.abs(adjusted_offset_x)>0.5 , np.abs(adjusted_offset_y)>0.5]):
@@ -180,6 +188,8 @@ def subpixel_adjustment(profile1d, distarr, inclination,numpix_adjust=11,
         ax1.legend()
         plt.show()
         plt.close()
+    if np.abs(xoffset) > 0.5 or np.abs(yoffset) > 0.5:
+        print('the peak is made at another pixel')
     if verbose:
         print('adjusted_offset, adjusted_offset_x, adjusted_offset_y, adjusted_peakval, pcov = ', 
           adjusted_offset, adjusted_offset_x, adjusted_offset_y, adjusted_peakval, pcov)
@@ -301,7 +311,6 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
         masked_cutout = masked_cutout[np.where((masked_cutout<thres)&(np.isfinite(masked_cutout)))]
     background = np.nanmedian(masked_cutout)
     mad = mad_std(masked_cutout, ignore_nan=True)
-    print(masked_cutout.shape)
     if plot:
         fig = plt.figure(figsize=(21,7))
         ax1 = fig.add_axes([0,0,0.33,1])
@@ -321,7 +330,7 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
 
 
 
-def residual(params, x, y, image, x_center, y_center, norm, rad=10, lambda_factor=3e4):
+def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor=1e5):
     """
     this residual function is the function that is required to be minimized
     
@@ -350,19 +359,19 @@ def residual(params, x, y, image, x_center, y_center, norm, rad=10, lambda_facto
     """
     model = gaussian2d(x, y, x_center, y_center, norm, **params)
     center = PixCoord(x_center, y_center)
-    xx, yy = np.mgrid[:model.shape[0], :model.shape[1]]
+    yy, xx = np.mgrid[:model.shape[0], :model.shape[1]]
     dist = np.sqrt((xx-x_center)**2+(yy-y_center)**2)
     reg = CirclePixelRegion(center,rad)
     mask = reg.to_mask()
     offset = image-model
     masked_offset = mask.multiply(offset)
-    masked_dist = mask.multiply(dist)
-    #masked_offset[masked_offset<0] = 100*masked_offset[masked_offset<0]
+    #masked_offset[masked_offset<0] = masked_offset[masked_offset<0] * 100000
     masked_offset[masked_offset<0] = masked_offset[masked_offset<0]*np.exp(lambda_factor*np.abs(masked_offset[masked_offset<0]))
+
     return masked_offset
     
 
-def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, maxrad=1, background=None, plot=False, 
+def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, fitting_size=1, background=None, plot=False, 
                         do_subpixel_adjust=True, iterstep=0.01, adjust_th=0.1, maxnumiter=10, numpoints=199):
     """
     fit the gaussian model for a single source
@@ -379,7 +388,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, maxrad=1, bac
         the beam of the image
     pixel_scale: astropy.unit
         the pixel scale of the image
-    maxrad: float
+    fitting_size: float
         the maximum radius of the cutout in units of the major axis of the beam
     background: float
         the background of the image
@@ -413,8 +422,8 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, maxrad=1, bac
     beam_pa = beam.pa
     numpix_major = beam.major.value/pixel_scale.value
     numpix_minor = beam.minor.value/pixel_scale.value
-
-    cutout = Cutout2D(data, positions, (1+int(maxrad*numpix_major), 1+int(maxrad*numpix_major)), wcs=wcsNB, mode='partial')
+    print('fitting array size, ', 1+int(fitting_size*numpix_major), 1+int(fitting_size*numpix_major))
+    cutout = Cutout2D(data, positions, (1+int(fitting_size*numpix_major), 1+int(fitting_size*numpix_major)), wcs=wcsNB, mode='partial')
     cutout_data = cutout.data
     if background is not None:
         cutout_data = cutout_data - background
@@ -428,20 +437,26 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, maxrad=1, bac
         offset_major = 2*adjust_th
         offset_minor= 2*adjust_th 
         niter=0
+        vec_init = (0,0)
+        vec = vec_init
         while(np.abs(offset_major)>adjust_th or np.abs(offset_minor)>adjust_th and niter < maxnumiter): 
             # run iterative process to find the exact center until the offset made each step is lower than certain threshold
-            adjusted_peakpos_x, adjusted_peakpos_y, offset_major, adjusted_peakval_maj = subpixel_adjustment(profile1d_maj, distarr,180*u.deg-beam_pa,numpix_adjust=numpix_adjust)
+            adjusted_peakpos_x, adjusted_peakpos_y, offset_major, adjusted_peakval_maj = subpixel_adjustment(profile1d_maj, distarr,180*u.deg-beam_pa, vec, numpix_adjust=numpix_adjust)
             xcen_subpixel = xcen_subpixel + adjusted_peakpos_x
             ycen_subpixel = ycen_subpixel + adjusted_peakpos_y
             distarr, profile1d_maj, profile1d_min = get_profile1d(cutout_data,xcen_subpixel, ycen_subpixel, 180*u.deg-beam_pa,numpoints=numpoints, distarr_step=iterstep)
+            vec = (vec[0]+adjusted_peakpos_x, vec[1]+adjusted_peakpos_y)  
+            
 
-            adjusted_peakpos_x, adjusted_peakpos_y, offset_minor, adjusted_peakval_min = subpixel_adjustment(profile1d_min, distarr,270*u.deg-beam_pa,numpix_adjust=numpix_adjust)
+            adjusted_peakpos_x, adjusted_peakpos_y, offset_minor, adjusted_peakval_min = subpixel_adjustment(profile1d_min, distarr,270*u.deg-beam_pa, vec, numpix_adjust=numpix_adjust)
             xcen_subpixel = xcen_subpixel + adjusted_peakpos_x
             ycen_subpixel = ycen_subpixel + adjusted_peakpos_y
             distarr, profile1d_maj, profile1d_min  = get_profile1d(cutout_data,xcen_subpixel, ycen_subpixel, 180*u.deg-beam_pa, numpoints=numpoints, distarr_step=iterstep)
+            vec = (vec[0]+adjusted_peakpos_x, vec[1]+adjusted_peakpos_y)  
+
             niter+=1
 
-
+    print('total offset in subpixel_offset_adjust, ', vec)
     y,x = np.mgrid[:cutout_data.shape[0],:cutout_data.shape[1]]
 
     #approx_peak = np.nanmax(cutout_data)
@@ -450,13 +465,13 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, maxrad=1, bac
     init_pa = 180-beam_pa.value
     if init_pa>180:
         init_pa = init_pa-180
-    p0 = [xcen_subpixel.value, ycen_subpixel.value, init_pa*np.pi/180, numpix_major, numpix_minor, adjusted_peakval_min, 0]
+    p0 = [xcen_subpixel.value, ycen_subpixel.value, init_pa*np.pi/180, numpix_major/np.log(8), numpix_minor/np.log(8), adjusted_peakval_min, 0]
     print('p0',p0)
     bounds= ((0.99*xcen_subpixel.value, 1.01*xcen_subpixel.value), 
              (0.99*ycen_subpixel.value, 1.01*ycen_subpixel.value), 
              (0, np.pi), 
-             (0.4*numpix_major, numpix_major*1.5), 
-             (0.4*numpix_minor, numpix_minor*1.5), 
+             (0.8*numpix_major/np.log(8), numpix_major/np.log(8)*4), 
+             (0.8*numpix_minor/np.log(8), numpix_minor/np.log(8)*4), 
              (0.9*adjusted_peakval_min, 1.1*adjusted_peakval_min), 
              (-1e-4, 1e-4))
 
@@ -540,7 +555,8 @@ def add_beam(ax,xpos,ypos,beam, pixel_scale,color='w',square=False,square_size=8
     width = beam.major / pixel_scale
     height = beam.minor /pixel_scale
     angle = beam.pa
-    ax.add_patch(Ellipse((xpos,ypos),width.value,height.value,180-angle.value,color=color))
+    
+    ax.add_patch(Ellipse((xpos,ypos),width.value,height.value,angle=180-angle.value,color=color))
     if square:
         ax.scatter(xpos,ypos,facecolor='none', edgecolor=color,s=square_size,marker='s')
 
@@ -552,7 +568,7 @@ def get_profile1d(cutout_data, xcen, ycen, inclination, numpoints=199, distarr_s
     yoffset_major = np.sin(inclination) * (numpoints-1)/2*distarr_step
     xoffset_minor = np.cos(inclination+90*u.deg) * (numpoints-1)/2*distarr_step
     yoffset_minor = np.sin(inclination+90*u.deg) * (numpoints-1)/2*distarr_step
-    
+     
     
     x0_maj = xcen-xoffset_major
     x1_maj = xcen+xoffset_major
@@ -572,18 +588,18 @@ def get_profile1d(cutout_data, xcen, ycen, inclination, numpoints=199, distarr_s
  
     distarr = np.linspace(-(numpoints-1)/2*distarr_step, (numpoints-1)/2*distarr_step, numpoints)
    
-    profile1d_maj = scipy.ndimage.map_coordinates(cutout_data, np.vstack((xarr_maj,yarr_maj)), mode='constant',cval=-10,prefilter=False)
-    profile1d_min = scipy.ndimage.map_coordinates(cutout_data, np.vstack((xarr_min,yarr_min)), mode='constant',cval=-10,prefilter=False)
-    
+    profile1d_maj = scipy.ndimage.map_coordinates(cutout_data, np.vstack((yarr_maj,xarr_maj)), mode='constant',cval=-10,prefilter=False)
+    profile1d_min = scipy.ndimage.map_coordinates(cutout_data, np.vstack((yarr_min,xarr_min)), mode='constant',cval=-10,prefilter=False)
+
    
     return distarr, profile1d_maj, profile1d_min
 
 def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, major, minor, peak, pixel_scale, background, 
                          major_err, minor_err, 
-                         beam, wcsNB, maxrad=4,
+                         beam, wcsNB, plot_size=4,
                         idx=0, issqrt=True, iterstep=0.01,
                          vmin=-0.00010907209521789237, vmax=0.002236069086983825, 
-                         resvmin=-0.00010907209521789237, resvmax=0.002236069086983825,  
+                         resvmin=-0.00010907209521789237, resvmax=0.002236069086983825, flux_unit='Jy/beam',  
                         bkg_inner_width=3, bkg_annulus_width=1, bkg_inner_height=3, bkg_annulus_height=1,
                           savedir='./',label='w51e', show=True):
     
@@ -604,9 +620,17 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     plt.rcParams.update(params)
 
     numpix_major = beam.major.value/pixel_scale.value
-    cutout = Cutout2D(data, (xcen, ycen), (1+maxrad*int(numpix_major), 1+maxrad*int(numpix_major)), wcs=wcsNB, mode='partial')
+    cutout = Cutout2D(data, (xcen, ycen), (1+plot_size*int(numpix_major), 1+plot_size*int(numpix_major)), wcs=wcsNB)
     cutout_data = cutout.data             
    
+    
+
+    numpix_major = int(beam.major.value/pixel_scale.value)
+    numpoints = int(2*numpix_major / iterstep)
+    xcen_cutout = xcen
+    ycen_cutout = ycen
+    distarr_temp, profile1d_maj_temp, profile1d_min_temp = get_profile1d(cutout_data, xcen_cutout - cutout.xmin_original, ycen_cutout - cutout.ymin_original, 180*u.deg-beam.pa, numpoints=numpoints, distarr_step=iterstep)
+
     fig = plt.figure(figsize=(32,24))
     ax1 = fig.add_axes([0.08, 0.55, 0.27,0.4])
     ax2 = fig.add_axes([0.40, 0.55, 0.27,0.4])
@@ -615,12 +639,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     ax5 = fig.add_axes([0.40, 0.08, 0.27,0.4])
     ax6 = fig.add_axes([0.72, 0.08, 0.27,0.4])
 
-    numpix_major = int(beam.major.value/pixel_scale.value)
-    numpoints = int(2*numpix_major / iterstep)
-    xcen_cutout = xcen-cutout.xmin_original
-    ycen_cutout = ycen-cutout.ymin_original
-
-    distarr, profile1d_maj, profile1d_min = get_profile1d(cutout_data, xcen_cutout, ycen_cutout, pa*u.deg, numpoints=numpoints, distarr_step=iterstep)
+    distarr, profile1d_maj, profile1d_min = get_profile1d(cutout_data, xcen_cutout - cutout.xmin_original, ycen_cutout - cutout.ymin_original, pa*u.deg, numpoints=numpoints, distarr_step=iterstep)
     profile1d_maj_bkgsub = profile1d_maj - background
     profile1d_min_bkgsub = profile1d_min - background
 
@@ -662,11 +681,11 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     ax1.set_xlabel('pixel offset',fontsize=35)
     ax2.set_xlabel('pixel offset',fontsize=35)
     ax3.set_xlabel('pixel offset',fontsize=35)
-    ax1.set_ylabel('flux (Jy/beam)',fontsize=35)
+    ax1.set_ylabel('flux (%s)'%flux_unit,fontsize=35)
     
-    ax1.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep, numpoints)
-    ax2.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep, numpoints)
-    ax3.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep, numpoints)
+    ax1.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep)
+    ax2.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep)
+    ax3.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep)
     
     ax1.set_ylim(np.min((np.nanmin(profile1d_maj), np.nanmin(gaussian(distarr, 0, minor, peak)))),
      np.max((1.1*np.nanmax(profile1d_maj), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))))
@@ -677,7 +696,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     major_fwhm = major * 2*np.sqrt(2*np.log(2))
     minor_fwhm = minor * 2*np.sqrt(2*np.log(2))
     extent = (-int(cutout_data.shape[1]/2),int(cutout_data.shape[1]/2),-int(cutout_data.shape[0]/2),int(cutout_data.shape[0]/2))
-
+    extent = (cutout.xmin_original-0.5, cutout.xmax_original+0.5, cutout.ymin_original-0.5, cutout.ymax_original+0.5)
     if issqrt:
         imshow1 = ax4.imshow(cutout_bkgsub, origin='lower', cmap=plt.get_cmap('inferno'), 
                     norm=colors.PowerNorm(gamma=0.5,
@@ -686,13 +705,13 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
         imshow1 = ax4.imshow(cutout_bkgsub, origin='lower', cmap=plt.get_cmap('inferno'), 
                     vmin=vmin,vmax=vmax, extent=extent)
 
-    ellipse = Ellipse([xcen_cutout-0.5*cutout_data.shape[0], ycen_cutout-0.5*cutout_data.shape[0]],
+    ellipse = Ellipse([xcen_cutout, ycen_cutout],
                           width=major_fwhm,height=minor_fwhm,facecolor='none',
                           angle=pa,edgecolor='cyan',lw=2)
-    inner_annulus = Ellipse([xcen_cutout-0.5*cutout_data.shape[0], ycen_cutout-0.5*cutout_data.shape[0]],
+    inner_annulus = Ellipse([xcen_cutout, ycen_cutout],
                             width=bkg_inner_width*major_fwhm,height=bkg_inner_width*minor_fwhm,facecolor='none',
                         angle=pa,edgecolor='cyan',lw=2, ls='dotted')
-    outer_annulus = Ellipse([xcen_cutout-0.5*cutout_data.shape[0], ycen_cutout-0.5*cutout_data.shape[0]],
+    outer_annulus = Ellipse([xcen_cutout, ycen_cutout],
                             width=(bkg_inner_width+bkg_annulus_width)*major_fwhm, 
                             height=(bkg_inner_width+bkg_annulus_width)*minor_fwhm,facecolor='none',
                         angle=pa,edgecolor='cyan',lw=2, ls='dotted')
@@ -700,21 +719,20 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     ax4.add_patch(inner_annulus)
     ax4.add_patch(outer_annulus)
     
-    ax4.scatter(xcen_cutout-0.5*cutout_data.shape[0], ycen_cutout-0.5*cutout_data.shape[0], marker='x', c='cyan')
-    ax4.scatter(xcen_original - cutout.xmin_original - 0.5*cutout_data.shape[0] , 
-                ycen_original - cutout.ymin_original - 0.5*cutout_data.shape[1], marker='x', c='r')
+    ax4.scatter(xcen_cutout, ycen_cutout, marker='x', c='cyan')
+    ax4.scatter(xcen_original, 
+                ycen_original, marker='x', c='r')
 
-    add_beam(ax4,-0.8*(maxrad*numpix_major+1)/2,-0.8*(maxrad*numpix_major+1)/2, 
+    add_beam(ax4,xcen_cutout-0.4*(plot_size*numpix_major+1),ycen_cutout-0.4*(plot_size*numpix_major+1), 
                 beam, pixel_scale, square=True, square_size=6000)
 
     y,x = np.mgrid[:cutout_data.shape[0], :cutout_data.shape[1]]
            
 
-    model =  gaussian2d(x, y, x_center=xcen_cutout, y_center=ycen_cutout
+    model =  gaussian2d(x+cutout.xmin_original, y+cutout.ymin_original, x_center=xcen_cutout, y_center=ycen_cutout
                         , theta=pa*np.pi/180, sigma_x = major, sigma_y= minor,norm=peak)
     
-    extent = (-int(cutout_data.shape[1]/2),int(cutout_data.shape[1]/2),-int(cutout_data.shape[0]/2),int(cutout_data.shape[0]/2))
-
+ 
     
     if issqrt:
         imshow2 = ax5.imshow(model, origin='lower', cmap=plt.get_cmap('inferno'), 
@@ -724,13 +742,13 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
         imshow2 = ax5.imshow(model, origin='lower', cmap=plt.get_cmap('inferno'), 
                     vmin=vmin,vmax=vmax, extent=extent)
         
-    ellipse = Ellipse([xcen_cutout-0.5*cutout_data.shape[0], ycen_cutout-0.5*cutout_data.shape[0]],
+    ellipse = Ellipse([xcen_cutout, ycen_cutout],
                           width=major_fwhm,height=minor_fwhm,facecolor='none',
                           angle=pa,edgecolor='cyan',lw=2)
-    inner_annulus = Ellipse([xcen_cutout-0.5*cutout_data.shape[0], ycen_cutout-0.5*cutout_data.shape[0]],
+    inner_annulus = Ellipse([xcen_cutout, ycen_cutout],
                             width=bkg_inner_width*major_fwhm,height=bkg_inner_height*minor_fwhm,facecolor='none',
                         angle=pa,edgecolor='cyan',lw=2, ls='dotted')
-    outer_annulus = Ellipse([xcen_cutout-0.5*cutout_data.shape[0], ycen_cutout-0.5*cutout_data.shape[0]],
+    outer_annulus = Ellipse([xcen_cutout, ycen_cutout],
                             width=(bkg_inner_width+bkg_annulus_width)*major_fwhm, 
                             height=(bkg_inner_height+bkg_annulus_height)*minor_fwhm,facecolor='none',
                         angle=pa,edgecolor='cyan',lw=2, ls='dotted')
@@ -747,13 +765,13 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
         imshow3 = ax6.imshow(cutout_bkgsub - model, origin='lower', cmap=plt.get_cmap('inferno'), 
                              
                     vmin=resvmin,vmax=resvmax, extent=extent)
-    ellipse = Ellipse([xcen_cutout-0.5*cutout_data.shape[0], ycen_cutout-0.5*cutout_data.shape[0]],
+    ellipse = Ellipse([xcen_cutout, ycen_cutout],
                           width=major_fwhm,height=minor_fwhm,facecolor='none',
                           angle=pa,edgecolor='cyan',lw=2)
-    inner_annulus = Ellipse([xcen_cutout-0.5*cutout_data.shape[0], ycen_cutout-0.5*cutout_data.shape[0]],
+    inner_annulus = Ellipse([xcen_cutout, ycen_cutout],
                             width=bkg_inner_width*major_fwhm,height=bkg_inner_height*minor_fwhm,facecolor='none',
                         angle=pa,edgecolor='cyan',lw=2, ls='dotted')
-    outer_annulus = Ellipse([xcen_cutout-0.5*cutout_data.shape[0], ycen_cutout-0.5*cutout_data.shape[0]],
+    outer_annulus = Ellipse([xcen_cutout, ycen_cutout],
                             width=(bkg_inner_width+bkg_annulus_width)*major_fwhm, 
                             height=(bkg_inner_height+bkg_annulus_height)*minor_fwhm,facecolor='none',
                         angle=pa,edgecolor='cyan',lw=2, ls='dotted')
@@ -765,15 +783,16 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     ax4.set_title('image',fontsize=35)
     ax5.set_title('model',fontsize=35)
     ax6.set_title('residual',fontsize=35)
-    ax4.set_xlim(-(maxrad*numpix_major+1)/2,(maxrad*numpix_major+1)/2)
-    ax4.set_ylim(-(maxrad*numpix_major+1)/2,(maxrad*numpix_major+1)/2)
-    ax5.set_xlim(-(maxrad*numpix_major+1)/2,(maxrad*numpix_major+1)/2)
-    ax5.set_ylim(-(maxrad*numpix_major+1)/2,(maxrad*numpix_major+1)/2)
-    ax6.set_xlim(-(maxrad*numpix_major+1)/2,(maxrad*numpix_major+1)/2)
-    ax6.set_ylim(-(maxrad*numpix_major+1)/2,(maxrad*numpix_major+1)/2)
-    
-    ax5.set_xlabel('RA pixel offset',fontsize=35)
-    ax4.set_ylabel('DEC pixel offset',fontsize=35)
+   
+    ax4.set_xlim(cutout.xmin_original, cutout.xmax_original)
+    ax4.set_ylim(cutout.ymin_original, cutout.ymax_original)
+    ax5.set_xlim(cutout.xmin_original, cutout.xmax_original)
+    ax5.set_ylim(cutout.ymin_original, cutout.ymax_original)
+    ax6.set_xlim(cutout.xmin_original, cutout.xmax_original)
+    ax6.set_ylim(cutout.ymin_original, cutout.ymax_original)
+
+    ax5.set_xlabel('RA pixel coordinates',fontsize=35)
+    ax4.set_ylabel('DEC pixel coordinates',fontsize=35)
 
     axins1 = inset_axes(ax4, width="80%", height="7%", loc='upper center')
     axins1.xaxis.set_ticks_position("bottom")
@@ -806,19 +825,22 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
         plt.show()
     plt.close()
 
-def get_integrated_flux(norm, sigma_x, sigma_y, norm_err, sigma_x_err, sigma_y_err,beam, pixel_scale):
-    flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale.to(u.deg))**2 * u.mJy # mJy/beam -> mJy/pix**2
+def get_integrated_flux(norm, sigma_x, sigma_y, norm_err, sigma_x_err, sigma_y_err,beam, pixel_scale, flux_unit='Jy/beam'):
+    if flux_unit == 'Jy/beam':
+        flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale.to(u.deg))**2 * u.Jy
+    elif flux_unit == 'mJy/beam':
+        flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale.to(u.deg))**2 * u.mJy # mJy/beam -> mJy/pix**2
     
     flux = 2*np.pi*flux_in_pix*sigma_x*sigma_y
-
-    fluxerr = flux * np.sqrt((norm_err/norm)**2 + (sigma_x_err/sigma_x)**2 + (sigma_y_err/sigma_y)**2)
+    fluxerr = flux * ((sigma_x_err/sigma_x)**2 + (sigma_y_err/sigma_y)**2)
+    #fluxerr = flux * np.sqrt((norm_err/norm)**2 + (sigma_x_err/sigma_x)**2 + (sigma_y_err/sigma_y)**2)
     
     return flux.to(u.Jy), fluxerr.to(u.Jy) 
 
 
        
-def save_fitting_results( fitted_major, fitted_minor, peak, major_err, minor_err, pa, pa_err,
-                         beam, pixel_scale,
+def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, peak, peak_err, pa, pa_err,
+                         beam, pixel_scale, flux_unit='Jy/beam',
                          savedir='./'):
     
     major_fwhm = np.array(fitted_major) * 2*np.sqrt(2*np.log(2))
@@ -827,7 +849,7 @@ def save_fitting_results( fitted_major, fitted_minor, peak, major_err, minor_err
     fwhm_major_sky = major_fwhm * pixel_scale 
     fwhm_minor_sky = minor_fwhm * pixel_scale 
     
-    flux, flux_err = get_integrated_flux(peak, fitted_major, fitted_minor, peak_err, major_err, minor_err, beam, pixel_scale)
+    flux, flux_err = get_integrated_flux(peak, fitted_major, fitted_minor,  0, major_err, minor_err, beam, pixel_scale, flux_unit=flux_unit)
 
 
     nsource = len(fitted_major)
@@ -868,15 +890,14 @@ def redefine_center(img, positions, searching_rad=10):
     """
 
     cutout = Cutout2D(img, positions, (searching_rad, searching_rad))
-    xcen, ycen = np.unravel_index(np.nanargmax(cutout.data), img.shape)
-    
-    return xcen, ycen
+    ycen, xcen = np.unravel_index(np.nanargmax(cutout.data), cutout.data.shape)
+    return xcen+cutout.xmin_original, ycen+cutout.ymin_original
 
 
 def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
-                         rad_multiplier = 4,
+                         fitting_size = 4,
                         issqrt=True, vmin=-0.00010907209521789237, vmax=0.002236069086983825,
-                        resvmin=-0.00010907209521789237, resvmax=0.002236069086983825, niter_err=1000,
+                        resvmin=-0.00010907209521789237, resvmax=0.002236069086983825, flux_unit='Jy/beam',
                         bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2,
                         savedir='w51e_b3_test.fits',label='w51e_b3', show=True, plot_init_fit=False):
     
@@ -905,9 +926,8 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         
         positions_original = (peakxy[i,0], peakxy[i,1])
         positions = redefine_center(data, positions_original)
-        cutout_small, results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, plot=False)
+        cutout_small, results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, plot=False, fitting_size=fitting_size)
         popt = results.params
-        print('popt_init',popt, cutout_small.shape)
         xcen_init = xcen_fit_init
         ycen_init = ycen_fit_init
         pa_init = popt['theta'] * 180 / np.pi
@@ -919,7 +939,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                      inner_height=bkg_inner_width*fitted_major_init, outer_height=(bkg_inner_width+bkg_annulus_width)*fitted_major_init)
         
       
-        cutout, results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, background = bkg, plot=False)
+        cutout, results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, background = bkg, plot=False, fitting_size=fitting_size)
         popt = results.params
         #pcov = results.uvars()
         #print('pcov',pcov)
@@ -948,7 +968,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                             idx=i, issqrt=issqrt,
                             vmin=vmin, vmax=vmax, 
                             resvmin=resvmin, resvmax=resvmax, 
-                            maxrad=rad_multiplier,
+                            plot_size=10, flux_unit = flux_unit,
                             bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
                             bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
                             savedir='./image_new/',label=label, show=show)
@@ -966,7 +986,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
               i, xcen, ycen, pa, fitted_major, fitted_minor, peak,  pa_err, fitted_major_err, fitted_minor_err )
 
 
-    save_fitting_results(fitted_major_arr, fitted_minor_arr, peak_arr, fitted_major_err_arr, fitted_minor_err_arr,
+    save_fitting_results(fitted_major_arr, fitted_minor_arr, fitted_major_err_arr, fitted_minor_err_arr, peak_arr, peak_err_arr, 
                      pa_arr, pa_err_arr,beam, pixel_scale,
                         savedir=savedir)
 
