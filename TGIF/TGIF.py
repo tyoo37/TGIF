@@ -599,8 +599,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
                          major_err, minor_err, 
                          beam, wcsNB, plot_size=4,
                         idx=0, issqrt=True, iterstep=0.01,
-                         vmin=None, vmax=None, 
-                         resvmin=-0.00010907209521789237, resvmax=0.002236069086983825, flux_unit='Jy/beam',  
+                         vmin=-0.00010907209521789237, vmafx=0.002236069086983825, flux_unit='Jy/beam',  
                         bkg_inner_width=3, bkg_annulus_width=1, bkg_inner_height=3, bkg_annulus_height=1,
                           savedir='./',label='w51e', show=True):
     
@@ -759,9 +758,9 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     ax5.add_patch(ellipse)
     ax5.add_patch(inner_annulus)
     ax5.add_patch(outer_annulus)
-    if resvmin is None or resvmax is None:
-        resvmin = np.nanmin(cutout_small.data - background)
-        resvmax = 0.7*np.nanmax(cutout_small.data - background)
+    #if resvmin is None or resvmax is None:
+    #    resvmin = np.nanmin(cutout_small.data - background)
+    #    resvmax = 0.7*np.nanmax(cutout_small.data - background)
     if issqrt:
         imshow3 = ax6.imshow(cutout_bkgsub - model, origin='lower', cmap=plt.get_cmap('inferno'), 
                     norm=colors.PowerNorm(gamma=0.5,
@@ -769,7 +768,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     else:
         imshow3 = ax6.imshow(cutout_bkgsub - model, origin='lower', cmap=plt.get_cmap('inferno'), 
                              
-                    vmin=resvmin,vmax=resvmax, extent=extent)
+                    vmin=vmin,vmax=vmax, extent=extent)
     ellipse = Ellipse([xcen_cutout, ycen_cutout],
                           width=major_fwhm,height=minor_fwhm,facecolor='none',
                           angle=pa,edgecolor='cyan',lw=2)
@@ -903,10 +902,9 @@ def redefine_center(img, positions, searching_rad=4):
 def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                          fitting_size = 4,
                         issqrt=True, vmin=None, vmax=None,
-                        resvmin=None, resvmax=None, flux_unit='Jy/beam',
+                        flux_unit='Jy/beam',
                         bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2,
-                        savedir='w51e_b3_test.fits',label='w51e_b3', show=True, plot_init_fit=False, 
-                        fitting_size_dict={}):
+                        savedir='w51e_b3_test.fits',label='w51e_b3', show=True, fitting_size_dict={}):
     
     num_source = len(peakxy[:,0])
     
@@ -975,8 +973,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         plot_for_individual(data, xcen, ycen, peakxy[i,0], peakxy[i,1], pa, fitted_major, fitted_minor, peak, pixel_scale, bkg, fitted_major_err, fitted_minor_err,  
                             beam, wcsNB,
                             idx=i, issqrt=issqrt,
-                            vmin=vmin, vmax=vmax, 
-                            resvmin=resvmin, resvmax=resvmax, 
+                            vmin=vmin, vmax=vmax,  
                             plot_size=10, flux_unit = flux_unit,
                             bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
                             bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
