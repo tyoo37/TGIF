@@ -146,7 +146,6 @@ def subpixel_adjustment(profile1d, distarr, inclination, vec_from_cen, numpix_ad
         adjusted_offset = popt[0]
         adjusted_offset=0
         adjusted_peakval=profiles_around_peak[int(len(profiles_around_peak)/2)]-small_value
-    print('adjusted_offset', adjusted_offset)
     """
     if np.abs(adjusted_offset)>tolerance:
         print('the peak is made at another pixel')
@@ -170,7 +169,6 @@ def subpixel_adjustment(profile1d, distarr, inclination, vec_from_cen, numpix_ad
 
     xoffset = vec_from_cen[0] + adjusted_offset_x
     yoffset = vec_from_cen[1] + adjusted_offset_y
-    print(inclination, vec_from_cen[0], adjusted_offset_x, xoffset, vec_from_cen[1], adjusted_offset_y, yoffset)
 
     
 
@@ -266,8 +264,6 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
     data_in_cutout = mask.cutout(data)
     masked_data = data_in_cutout * mask.data
     maskbool = mask.data.astype('bool')
-    print(masked_data.shape)
-    print(maskbool.shape)
     test_region = EllipseAnnulusPixelRegion(center=PixCoord(x=xcen, y=ycen),
                                        outer_width=outer_width+beam_major.value/pixel_scale.value,
                                        inner_width=inner_width-beam_major.value/pixel_scale.value,
