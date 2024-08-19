@@ -599,7 +599,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
                          major_err, minor_err, 
                          beam, wcsNB, plot_size=4,
                         idx=0, issqrt=True, iterstep=0.01,
-                         vmin=-0.00010907209521789237, vmafx=0.002236069086983825, flux_unit='Jy/beam',  
+                         vmin=-0.00010907209521789237, vmax=0.002236069086983825, flux_unit='Jy/beam',  
                         bkg_inner_width=3, bkg_annulus_width=1, bkg_inner_height=3, bkg_annulus_height=1,
                           savedir='./',label='w51e', show=True):
     
