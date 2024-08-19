@@ -964,13 +964,13 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         
         flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
         
-        major_fwhm = np.array(fitted_major) * 2*np.sqrt(2*np.log(2))
-        minor_fwhm = np.array(fitted_minor) * 2*np.sqrt(2*np.log(2))
+        major_fwhm = np.array(fitted_major.value) * 2*np.sqrt(2*np.log(2))
+        minor_fwhm = np.array(fitted_minor.value) * 2*np.sqrt(2*np.log(2))
 
         fwhm_major_sky = major_fwhm * pixel_scale 
         fwhm_minor_sky = minor_fwhm * pixel_scale 
 
-        fitted_gaussian_as_beam = Beam(major=fwhm_major_sky[i], minor=fwhm_minor_sky[i], pa=-pa[i])
+        fitted_gaussian_as_beam = Beam(major=fwhm_major_sky, minor=fwhm_minor_sky, pa=pa)
     
         try:
             deconvolved = fitted_gaussian_as_beam.deconvolve(beam)
