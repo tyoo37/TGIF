@@ -330,7 +330,7 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
 
 
 
-def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor=1e5):
+def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor=1e6):
     """
     this residual function is the function that is required to be minimized
     
@@ -365,14 +365,15 @@ def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor
     mask = reg.to_mask()
     offset = image-model
     masked_offset = mask.multiply(offset)
+    masked_offset[masked_offset>0] = masked_offset[masked_offset>0]/10
     #masked_offset[masked_offset<0] = masked_offset[masked_offset<0] * 100000
-    masked_offset[masked_offset<0] = masked_offset[masked_offset<0]*np.exp(lambda_factor*np.abs(masked_offset[masked_offset<0]))
+    #masked_offset[masked_offset<0] = masked_offset[masked_offset<0]*np.exp(lambda_factor*np.abs(masked_offset[masked_offset<0]))
 
     return masked_offset
     
 
-def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, fitting_size=1, background=None, plot=False, 
-                        do_subpixel_adjust=True, iterstep=0.01, adjust_th=0.1, maxnumiter=10, numpoints=199):
+def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=0*u.deg, fitting_size=1, background=None, plot=False, 
+                        do_subpixel_adjust=True, iterstep=0.01, adjust_th=0.1, maxnumiter=10, numpoints=199, flux_unit='Jy/beam'):
     """
     fit the gaussian model for a single source
 
@@ -430,7 +431,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, fitting_size=
     if do_subpixel_adjust:
         xcen_subpixel = positions[0] - cutout.xmin_original
         ycen_subpixel = positions[1] - cutout.ymin_original
-        distarr, profile1d_maj, profile1d_min = get_profile1d(cutout_data,xcen_subpixel,ycen_subpixel, 180*u.deg-beam_pa, numpoints=numpoints, distarr_step=iterstep)
+        distarr, profile1d_maj, profile1d_min = get_profile1d(cutout_data,xcen_subpixel,ycen_subpixel, subpixel_adjust_angle, numpoints=numpoints, distarr_step=iterstep)
 
         numpix_adjust =int(numpix_major/iterstep)
         #print('numpix_adjust',numpix_adjust)
@@ -441,17 +442,17 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, fitting_size=
         vec = vec_init
         while(np.abs(offset_major)>adjust_th or np.abs(offset_minor)>adjust_th and niter < maxnumiter): 
             # run iterative process to find the exact center until the offset made each step is lower than certain threshold
-            adjusted_peakpos_x, adjusted_peakpos_y, offset_major, adjusted_peakval_maj = subpixel_adjustment(profile1d_maj, distarr,180*u.deg-beam_pa, vec, numpix_adjust=numpix_adjust)
+            adjusted_peakpos_x, adjusted_peakpos_y, offset_major, adjusted_peakval_maj = subpixel_adjustment(profile1d_maj, distarr,subpixel_adjust_angle, vec, numpix_adjust=numpix_adjust)
             xcen_subpixel = xcen_subpixel + adjusted_peakpos_x
             ycen_subpixel = ycen_subpixel + adjusted_peakpos_y
-            distarr, profile1d_maj, profile1d_min = get_profile1d(cutout_data,xcen_subpixel, ycen_subpixel, 180*u.deg-beam_pa,numpoints=numpoints, distarr_step=iterstep)
+            distarr, profile1d_maj, profile1d_min = get_profile1d(cutout_data,xcen_subpixel, ycen_subpixel, subpixel_adjust_angle,numpoints=numpoints, distarr_step=iterstep)
             vec = (vec[0]+adjusted_peakpos_x, vec[1]+adjusted_peakpos_y)  
             
 
-            adjusted_peakpos_x, adjusted_peakpos_y, offset_minor, adjusted_peakval_min = subpixel_adjustment(profile1d_min, distarr,270*u.deg-beam_pa, vec, numpix_adjust=numpix_adjust)
+            adjusted_peakpos_x, adjusted_peakpos_y, offset_minor, adjusted_peakval_min = subpixel_adjustment(profile1d_min, distarr,subpixel_adjust_angle+90*u.deg, vec, numpix_adjust=numpix_adjust)
             xcen_subpixel = xcen_subpixel + adjusted_peakpos_x
             ycen_subpixel = ycen_subpixel + adjusted_peakpos_y
-            distarr, profile1d_maj, profile1d_min  = get_profile1d(cutout_data,xcen_subpixel, ycen_subpixel, 180*u.deg-beam_pa, numpoints=numpoints, distarr_step=iterstep)
+            distarr, profile1d_maj, profile1d_min  = get_profile1d(cutout_data,xcen_subpixel, ycen_subpixel, subpixel_adjust_angle, numpoints=numpoints, distarr_step=iterstep)
             vec = (vec[0]+adjusted_peakpos_x, vec[1]+adjusted_peakpos_y)  
 
             niter+=1
@@ -524,7 +525,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, fitting_size=
         axins1 = inset_axes(ax1, width="80%", height="7%", loc='upper center')
         axins1.xaxis.set_ticks_position("bottom")
         cbar = plt.colorbar(imshow1, cax = axins1, orientation='horizontal')
-        cbar.set_label('flux (mJy/beam)', color='w',fontsize=25)
+        cbar.set_label('flux (%s))'%flux_unit, color='w',fontsize=25)
         cbar.ax.xaxis.set_tick_params(color='w')
         cbar.outline.set_edgecolor('w')
         plt.setp(plt.getp(cbar.ax.axes, 'xticklabels'), color='w')
@@ -533,7 +534,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, fitting_size=
         axins2 = inset_axes(ax2, width="80%", height="7%", loc='upper center')
         axins2.xaxis.set_ticks_position("bottom")
         cbar=plt.colorbar(imshow2, cax = axins2, orientation='horizontal')
-        cbar.set_label('flux (mJy/beam)',color='w')
+        cbar.set_label('flux (%s))'%flux_unit,color='w')
         cbar.ax.xaxis.set_tick_params(color='w')
         cbar.outline.set_edgecolor('w')
         plt.setp(plt.getp(cbar.ax.axes, 'xticklabels'), color='w')
@@ -542,7 +543,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, fitting_size=
         axins3 = inset_axes(ax3, width="80%", height="7%", loc='upper center')
         axins3.xaxis.set_ticks_position("bottom")
         cbar=plt.colorbar(imshow3, cax = axins3, orientation='horizontal')
-        cbar.set_label('flux (mJy/beam)',color='w')
+        cbar.set_label('flux (%s)'%flux_unit,color='w')
         cbar.ax.xaxis.set_tick_params(color='w')
         cbar.outline.set_edgecolor('w')
         plt.setp(plt.getp(cbar.ax.axes, 'xticklabels'), color='w')
@@ -598,7 +599,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
                          major_err, minor_err, 
                          beam, wcsNB, plot_size=4,
                         idx=0, issqrt=True, iterstep=0.01,
-                         vmin=-0.00010907209521789237, vmax=0.002236069086983825, 
+                         vmin=None, vmax=None, 
                          resvmin=-0.00010907209521789237, resvmax=0.002236069086983825, flux_unit='Jy/beam',  
                         bkg_inner_width=3, bkg_annulus_width=1, bkg_inner_height=3, bkg_annulus_height=1,
                           savedir='./',label='w51e', show=True):
@@ -622,7 +623,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     numpix_major = beam.major.value/pixel_scale.value
     cutout = Cutout2D(data, (xcen, ycen), (1+plot_size*int(numpix_major), 1+plot_size*int(numpix_major)), wcs=wcsNB)
     cutout_data = cutout.data             
-   
+    
     
 
     numpix_major = int(beam.major.value/pixel_scale.value)
@@ -644,8 +645,11 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     profile1d_min_bkgsub = profile1d_min - background
 
     cutout_bkgsub = cutout_data - background
-    vmin = np.nanmin(cutout_bkgsub)
-    vmax = np.nanmax(cutout_bkgsub)
+
+    if vmin is None or vmax is None:
+        cutout_small = Cutout2D(data, (xcen, ycen), (5*int(numpix_major), 5*int(numpix_major)), wcs=wcsNB)
+        vmin = np.nanmin(cutout_small.data - background)
+        vmax = 0.7*np.nanmax(cutout_small.data - background)
 
     ax1.plot(distarr, profile1d_maj, label='image',ls='solid',lw=4, c='k')
     ax1.plot(distarr, profile1d_maj_bkgsub, label='image bkg-subtracted',lw=4)
@@ -755,8 +759,9 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     ax5.add_patch(ellipse)
     ax5.add_patch(inner_annulus)
     ax5.add_patch(outer_annulus)
-    resvmin = np.nanmin(cutout_bkgsub-model)
-    resvmax = np.nanmax(cutout_bkgsub-model)
+    if resvmin is None or resvmax is None:
+        resvmin = np.nanmin(cutout_small.data - background)
+        resvmax = 0.7*np.nanmax(cutout_small.data - background)
     if issqrt:
         imshow3 = ax6.imshow(cutout_bkgsub - model, origin='lower', cmap=plt.get_cmap('inferno'), 
                     norm=colors.PowerNorm(gamma=0.5,
@@ -797,7 +802,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     axins1 = inset_axes(ax4, width="80%", height="7%", loc='upper center')
     axins1.xaxis.set_ticks_position("bottom")
     cbar = plt.colorbar(imshow1, cax = axins1, orientation='horizontal')
-    cbar.set_label('flux (mJy/beam)', color='w',fontsize=25)
+    cbar.set_label('flux (%s)'%flux_unit, color='w',fontsize=25)
     cbar.ax.xaxis.set_tick_params(color='w')
     cbar.outline.set_edgecolor('w')
     plt.setp(plt.getp(cbar.ax.axes, 'xticklabels'), color='w')
@@ -806,7 +811,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     axins2 = inset_axes(ax5, width="80%", height="7%", loc='upper center')
     axins2.xaxis.set_ticks_position("bottom")
     cbar=plt.colorbar(imshow2, cax = axins2, orientation='horizontal')
-    cbar.set_label('flux (mJy/beam)',color='w')
+    cbar.set_label('flux (%s)'%flux_unit,color='w')
     cbar.ax.xaxis.set_tick_params(color='w')
     cbar.outline.set_edgecolor('w')
     plt.setp(plt.getp(cbar.ax.axes, 'xticklabels'), color='w')
@@ -815,7 +820,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     axins3 = inset_axes(ax6, width="80%", height="7%", loc='upper center')
     axins3.xaxis.set_ticks_position("bottom")
     cbar=plt.colorbar(imshow3, cax = axins3, orientation='horizontal')
-    cbar.set_label('flux (mJy/beam)',color='w')
+    cbar.set_label('flux (%s)'%flux_unit,color='w')
     cbar.ax.xaxis.set_tick_params(color='w')
     cbar.outline.set_edgecolor('w')
     plt.setp(plt.getp(cbar.ax.axes, 'xticklabels'), color='w')
@@ -825,14 +830,15 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
         plt.show()
     plt.close()
 
-def get_integrated_flux(norm, sigma_x, sigma_y, norm_err, sigma_x_err, sigma_y_err,beam, pixel_scale, flux_unit='Jy/beam'):
+def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, pixel_scale, flux_unit='Jy/beam'):
     if flux_unit == 'Jy/beam':
         flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale.to(u.deg))**2 * u.Jy
     elif flux_unit == 'mJy/beam':
         flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale.to(u.deg))**2 * u.mJy # mJy/beam -> mJy/pix**2
     
     flux = 2*np.pi*flux_in_pix*sigma_x*sigma_y
-    fluxerr = flux * ((sigma_x_err/sigma_x)**2 + (sigma_y_err/sigma_y)**2)
+    print(sigma_x_err,sigma_x,sigma_y_err,sigma_y)
+    fluxerr = flux * ((np.array(sigma_x_err)/np.array(sigma_x))**2 + (np.array(sigma_y_err)/np.array(sigma_y))**2)
     #fluxerr = flux * np.sqrt((norm_err/norm)**2 + (sigma_x_err/sigma_x)**2 + (sigma_y_err/sigma_y)**2)
     
     return flux.to(u.Jy), fluxerr.to(u.Jy) 
@@ -849,7 +855,7 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, peak
     fwhm_major_sky = major_fwhm * pixel_scale 
     fwhm_minor_sky = minor_fwhm * pixel_scale 
     
-    flux, flux_err = get_integrated_flux(peak, fitted_major, fitted_minor,  0, major_err, minor_err, beam, pixel_scale, flux_unit=flux_unit)
+    flux, flux_err = get_integrated_flux(peak, fitted_major, fitted_minor,  major_err, minor_err, beam, pixel_scale, flux_unit=flux_unit)
 
 
     nsource = len(fitted_major)
@@ -884,7 +890,7 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, peak
                        ))
     tab.write(savedir, format='fits', overwrite=True)
 
-def redefine_center(img, positions, searching_rad=10):
+def redefine_center(img, positions, searching_rad=4):
     """
     find the peak of the image if the original source position is not at the peak.
     """
@@ -896,10 +902,11 @@ def redefine_center(img, positions, searching_rad=10):
 
 def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                          fitting_size = 4,
-                        issqrt=True, vmin=-0.00010907209521789237, vmax=0.002236069086983825,
-                        resvmin=-0.00010907209521789237, resvmax=0.002236069086983825, flux_unit='Jy/beam',
+                        issqrt=True, vmin=None, vmax=None,
+                        resvmin=None, resvmax=None, flux_unit='Jy/beam',
                         bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2,
-                        savedir='w51e_b3_test.fits',label='w51e_b3', show=True, plot_init_fit=False):
+                        savedir='w51e_b3_test.fits',label='w51e_b3', show=True, plot_init_fit=False, 
+                        fitting_size_dict={}):
     
     num_source = len(peakxy[:,0])
     
@@ -924,9 +931,11 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             pa_err_arr.append(np.nan)
             continue
         
+        if i in fitting_size_dict:
+            fitting_size = fitting_size_dict[i]
         positions_original = (peakxy[i,0], peakxy[i,1])
         positions = redefine_center(data, positions_original)
-        cutout_small, results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, plot=False, fitting_size=fitting_size)
+        cutout_small, results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, fitting_size=fitting_size)
         popt = results.params
         xcen_init = xcen_fit_init
         ycen_init = ycen_fit_init
@@ -939,7 +948,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                      inner_height=bkg_inner_width*fitted_major_init, outer_height=(bkg_inner_width+bkg_annulus_width)*fitted_major_init)
         
       
-        cutout, results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, background = bkg, plot=False, fitting_size=fitting_size)
+        cutout, results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit)
         popt = results.params
         #pcov = results.uvars()
         #print('pcov',pcov)
