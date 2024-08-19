@@ -978,8 +978,8 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                             bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
                             bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
                             savedir='./image_new/',label=label, show=show)
-        fitted_major_arr.append(fitted_major)
-        fitted_minor_arr.append(fitted_minor)
+        fitted_major_arr.append(fitted_major.value)
+        fitted_minor_arr.append(fitted_minor.value)
         peak_arr.append(peak)
         fitted_major_err_arr.append(fitted_major_err)
         fitted_minor_err_arr.append(fitted_minor_err)
@@ -989,7 +989,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         
 
         print('i, xcen, ycen, pa, fitted_major, fitted_minor, peak,  pa_err, fitted_major_err, fitted_minor_err,',
-              i, xcen, ycen, pa, fitted_major, fitted_minor, peak,  pa_err, fitted_major_err, fitted_minor_err )
+              i, xcen, ycen, pa, fitted_major.value, fitted_minor.value, peak,  pa_err, fitted_major_err, fitted_minor_err )
 
 
     save_fitting_results(fitted_major_arr, fitted_minor_arr, fitted_major_err_arr, fitted_minor_err_arr, peak_arr, peak_err_arr, 
