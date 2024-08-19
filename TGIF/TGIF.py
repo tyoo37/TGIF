@@ -373,7 +373,7 @@ def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor
     
 
 def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=0*u.deg, fitting_size=1, background=None, plot=False, 
-                        do_subpixel_adjust=True, iterstep=0.01, adjust_th=0.1, maxnumiter=10, numpoints=199, flux_unit='Jy/beam'):
+                        do_subpixel_adjust=True, iterstep=0.01, adjust_th=0.1, maxnumiter=10, numpoints=199, maximum_size=4, flux_unit='Jy/beam'):
     """
     fit the gaussian model for a single source
 
@@ -471,8 +471,8 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
     bounds= ((0.99*xcen_subpixel.value, 1.01*xcen_subpixel.value), 
              (0.99*ycen_subpixel.value, 1.01*ycen_subpixel.value), 
              (0, np.pi), 
-             (0.8*numpix_major/np.log(8), numpix_major/np.log(8)*4), 
-             (0.8*numpix_minor/np.log(8), numpix_minor/np.log(8)*4), 
+             (0.8*numpix_major/np.log(8), numpix_major/np.log(8)*maximum_size), 
+             (0.8*numpix_minor/np.log(8), numpix_minor/np.log(8)*maximum_size), 
              (0.9*adjusted_peakval_min, 1.1*adjusted_peakval_min), 
              (-1e-4, 1e-4))
 
@@ -623,13 +623,10 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     cutout = Cutout2D(data, (xcen, ycen), (1+plot_size*int(numpix_major), 1+plot_size*int(numpix_major)), wcs=wcsNB)
     cutout_data = cutout.data             
     
-    
-
     numpix_major = int(beam.major.value/pixel_scale.value)
     numpoints = int(2*numpix_major / iterstep)
     xcen_cutout = xcen
     ycen_cutout = ycen
-    distarr_temp, profile1d_maj_temp, profile1d_min_temp = get_profile1d(cutout_data, xcen_cutout - cutout.xmin_original, ycen_cutout - cutout.ymin_original, 180*u.deg-beam.pa, numpoints=numpoints, distarr_step=iterstep)
 
     fig = plt.figure(figsize=(32,24))
     ax1 = fig.add_axes([0.08, 0.55, 0.27,0.4])
@@ -903,7 +900,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                          fitting_size = 4,
                         issqrt=True, vmin=None, vmax=None,
                         flux_unit='Jy/beam',
-                        bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2,
+                        bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2, maximum_size=4
                         savedir='w51e_b3_test.fits',label='w51e_b3', show=True, fitting_size_dict={}):
     
     num_source = len(peakxy[:,0])
@@ -933,7 +930,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             fitting_size = fitting_size_dict[i]
         positions_original = (peakxy[i,0], peakxy[i,1])
         positions = redefine_center(data, positions_original)
-        cutout_small, results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, fitting_size=fitting_size)
+        cutout_small, results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, fitting_size=fitting_size, maximum_size=maximum_size)
         popt = results.params
         xcen_init = xcen_fit_init
         ycen_init = ycen_fit_init
@@ -946,7 +943,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                      inner_height=bkg_inner_width*fitted_major_init, outer_height=(bkg_inner_width+bkg_annulus_width)*fitted_major_init)
         
       
-        cutout, results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit)
+        cutout, results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit, maximum_size=maximum_size)
         popt = results.params
         #pcov = results.uvars()
         #print('pcov',pcov)
