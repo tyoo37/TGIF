@@ -841,37 +841,11 @@ def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, p
 
 
        
-def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, peak, peak_err, pa, pa_err,
-                         beam, pixel_scale, flux_unit='Jy/beam',
+def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, pa_err,
+                         flux, flux_err, deconvolved_major_arr, deconvolved_minor_arr, pixel_scale,
                          savedir='./'):
     
-    major_fwhm = np.array(fitted_major) * 2*np.sqrt(2*np.log(2))
-    minor_fwhm = np.array(fitted_minor) * 2*np.sqrt(2*np.log(2))
-
-    fwhm_major_sky = major_fwhm * pixel_scale 
-    fwhm_minor_sky = minor_fwhm * pixel_scale 
     
-    flux, flux_err = get_integrated_flux(peak, fitted_major, fitted_minor,  major_err, minor_err, beam, pixel_scale, flux_unit=flux_unit)
-
-
-    nsource = len(fitted_major)
-
-    deconvolved_major_arr = []
-    deconvolved_minor_arr = []
-
-    for i in range(nsource):   
-        fitted_gaussian_as_beam = Beam(major=fwhm_major_sky[i], minor=fwhm_minor_sky[i], pa=-pa[i])
-    
-        try:
-            deconvolved = fitted_gaussian_as_beam.deconvolve(beam)
-            deconvolved_major = deconvolved.major.value
-            deconvolved_minor = deconvolved.minor.value
-        except:
-            deconvolved_major =0
-            deconvolved_minor =0
-
-        deconvolved_major_arr.append(deconvolved_major)
-        deconvolved_minor_arr.append(deconvolved_minor)
 
     tab = Table([flux, flux_err, 
                  pa*u.deg, pa_err*u.deg, 
@@ -913,6 +887,11 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
     fitted_minor_err_arr = []
     peak_err_arr = []
     pa_err_arr = []
+    flux_arr = []
+    flux_err_arr = []  
+
+    deconvolved_major_arr = []
+    deconvolved_minor_arr = []
     for i in range(num_source):
       
         if peakxy[i,0]<0 or peakxy[i,1]<0 :
@@ -924,6 +903,10 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             peak_err_arr.append(np.nan)
             pa_arr.append(np.nan)
             pa_err_arr.append(np.nan)
+            flux_arr.append(np.nan)
+            flux_err_arr.append(np.nan)
+            deconvolved_major_arr.append(np.nan)
+            deconvolved_minor_arr.append(np.nan)
             continue
         
         if i in fitting_size_dict:
@@ -964,7 +947,10 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             pa_err = None
         fitted_major_err = results.params['sigma_x'].stderr
         fitted_minor_err = results.params['sigma_y'].stderr
-        #peak_err = results.params['norm'].stderr
+        fitted_major_arr.append(fitted_major.value)
+        fitted_minor_arr.append(fitted_minor.value)
+        fitted_major_err_arr.append(fitted_major_err)
+        fitted_minor_err_arr.append(fitted_minor_err)
 
 
         plot_for_individual(data, xcen, ycen, peakxy[i,0], peakxy[i,1], pa, fitted_major, fitted_minor, peak, pixel_scale, bkg, fitted_major_err, fitted_minor_err,  
@@ -975,22 +961,41 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                             bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
                             bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
                             savedir='./image_new/',label=label, show=show)
-        fitted_major_arr.append(fitted_major.value)
-        fitted_minor_arr.append(fitted_minor.value)
+        
+        flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
+        
+        major_fwhm = np.array(fitted_major) * 2*np.sqrt(2*np.log(2))
+        minor_fwhm = np.array(fitted_minor) * 2*np.sqrt(2*np.log(2))
+
+        fwhm_major_sky = major_fwhm * pixel_scale 
+        fwhm_minor_sky = minor_fwhm * pixel_scale 
+
+        fitted_gaussian_as_beam = Beam(major=fwhm_major_sky[i], minor=fwhm_minor_sky[i], pa=-pa[i])
+    
+        try:
+            deconvolved = fitted_gaussian_as_beam.deconvolve(beam)
+            deconvolved_major = deconvolved.major.value
+            deconvolved_minor = deconvolved.minor.value
+        except:
+            deconvolved_major =0
+            deconvolved_minor =0
+
+        deconvolved_major_arr.append(deconvolved_major)
+        deconvolved_minor_arr.append(deconvolved_minor)
         peak_arr.append(peak)
-        fitted_major_err_arr.append(fitted_major_err)
-        fitted_minor_err_arr.append(fitted_minor_err)
-        #peak_err_arr.append(peak_err)
+       
+
         pa_arr.append(np.pi-pa)
         pa_err_arr.append(pa_err)
-        
+        flux_arr.append(flux)
+        flux_err_arr.append(flux_err)
 
         print('i, xcen, ycen, pa, fitted_major, fitted_minor, peak,  pa_err, fitted_major_err, fitted_minor_err,',
               i, xcen, ycen, pa, fitted_major.value, fitted_minor.value, peak,  pa_err, fitted_major_err, fitted_minor_err )
 
-
-    save_fitting_results(fitted_major_arr, fitted_minor_arr, fitted_major_err_arr, fitted_minor_err_arr, peak_arr, peak_err_arr, 
-                     pa_arr, pa_err_arr,beam, pixel_scale,
+ 
+    save_fitting_results(fitted_major_arr, fitted_minor_arr, fitted_major_err_arr, fitted_minor_err_arr, 
+                     pa_arr, pa_err_arr, flux_arr, flux_err_arr, deconvolved_major_arr, deconvolved_minor_arr ,beam, pixel_scale,
                         savedir=savedir)
 
 
