@@ -900,7 +900,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                          fitting_size = 4,
                         issqrt=True, vmin=None, vmax=None,
                         flux_unit='Jy/beam',
-                        bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2, maximum_size=4
+                        bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2, maximum_size=4,
                         savedir='w51e_b3_test.fits',label='w51e_b3', show=True, fitting_size_dict={}):
     
     num_source = len(peakxy[:,0])
