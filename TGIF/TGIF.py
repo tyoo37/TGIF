@@ -10,7 +10,7 @@ from regions.core import PixCoord
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as u
-from astropy.table import Table
+from astropy.table import Table, MaskedColumn
 from radio_beam import Beam
 from astropy import coordinates
 from astropy import wcs
@@ -366,7 +366,7 @@ def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor
     #masked_offset[masked_offset<0] = masked_offset[masked_offset<0] * 100000
     #masked_offset[masked_offset<0] = masked_offset[masked_offset<0]*np.exp(lambda_factor*np.abs(masked_offset[masked_offset<0]))
 
-    return masked_offset
+    return masked_offset[np.isfinite(masked_offset)]
     
 
 def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=0*u.deg, fitting_size=1, background=None, plot=False, report_fit=True,
@@ -842,28 +842,20 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, 
                          flux, flux_err, deconvolved_major_arr, deconvolved_minor_arr,
                          savedir='./'):
     
+    from astropy.table import QTable
+
     
-    tab = Table([flux, flux_err, 
-                 pa*u.deg, pa_err*u.deg, 
+    tab = QTable([flux, flux_err, 
+                 pa, pa_err, 
                  fitted_major, major_err,
                  fitted_minor, minor_err,
-                deconvolved_major_arr*u.deg, deconvolved_minor_arr*u.deg],
+                deconvolved_major_arr, deconvolved_minor_arr],
                 names=('flux', 'flux_err',
                         'pa', 'pa_err',
                        'fitted_major', 'fitted_major_err',
                        'fitted_minor', 'fitted_minor_err', 
                        'deconvolved_major', 'deconvolved_minor', 
                        ))
-    tab['flux'].mask = pd.isnull(tab['flux'])
-    tab['flux_err'].mask = pd.isnull(tab['flux_err'])
-    tab['pa'].mask = pd.isnull(tab['pa'])
-    tab['pa_err'].mask = pd.isnull(tab['pa_err'])
-    tab['fitted_major'].mask = pd.isnull(tab['fitted_major'])
-    tab['fitted_major_err'].mask = pd.isnull(tab['fitted_major_err'])
-    tab['fitted_minor'].mask = pd.isnull(tab['fitted_minor'])
-    tab['fitted_minor_err'].mask = pd.isnull(tab['fitted_minor_err'])
-    tab['deconvolved_major'].mask = pd.isnull(tab['deconvolved_major'])
-    tab['deconvolved_minor'].mask = pd.isnull(tab['deconvolved_minor'])
 
 
 
@@ -903,6 +895,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
     deconvolved_minor_arr = []
 
     for i in range(num_source):
+       
       
         if peakxy[i,0]<0 or peakxy[i,1]<0 :
             fitted_major_arr.append(np.nan)
@@ -957,20 +950,21 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             pa_err = None
         fitted_major_err = results.params['sigma_x'].stderr
         fitted_minor_err = results.params['sigma_y'].stderr
+
         if fitted_major.value is not None:
-            fitted_major_arr.append(fitted_major.value*pixel_scale)
+            fitted_major_arr.append(fitted_major.value*pixel_scale.value)
         else:
             fitted_major_arr.append(np.nan)
         if fitted_minor.value is not None:
-            fitted_minor_arr.append(fitted_minor.value*pixel_scale)
+            fitted_minor_arr.append(fitted_minor.value*pixel_scale.value)
         else:
             fitted_minor_arr.append(np.nan)
         if fitted_major_err is not None:
-            fitted_major_err_arr.append(fitted_major_err*pixel_scale)
+            fitted_major_err_arr.append(fitted_major_err*pixel_scale.value)
         else:
             fitted_major_err_arr.append(np.nan)
         if fitted_minor_err is not None:
-            fitted_minor_err_arr.append(fitted_minor_err*pixel_scale)
+            fitted_minor_err_arr.append(fitted_minor_err*pixel_scale.value)
         else:
             fitted_minor_err_arr.append(np.nan)
             
@@ -1012,16 +1006,33 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
 
         pa_arr.append(pa)
         pa_err_arr.append(pa_err)
-        flux_arr.append(flux)
-        flux_err_arr.append(flux_err)
+
+        if np.isfinite(flux):
+            flux_arr.append(flux.value)
+            flux_err_arr.append(flux_err.value)
+
+        else:
+            flux_arr.append(flux)
+            flux_err_arr.append(flux_err)
 
         print('i, xcen, ycen, pa, fitted_major, fitted_minor, peak,  pa_err, fitted_major_err, fitted_minor_err,',
               i, xcen, ycen, pa, fitted_major.value, fitted_minor.value, peak,  pa_err, fitted_major_err, fitted_minor_err )
 
- 
-    save_fitting_results(fitted_major_arr, fitted_minor_arr, fitted_major_err_arr, fitted_minor_err_arr, 
-                     pa_arr, pa_err_arr, flux_arr, flux_err_arr, deconvolved_major_arr, deconvolved_minor_arr,
-                        savedir=savedir)
+    fitted_major_column = MaskedColumn(data=fitted_major_arr, name='fitted_major', mask=np.isnan(fitted_major_arr), unit=u.arcsec, fill_value=-999)
+    fitted_minor_column = MaskedColumn(data=fitted_minor_arr, name='fitted_minor', mask=np.isnan(fitted_minor_arr), unit=u.arcsec, fill_value=-999)
+    fitted_major_err_column = MaskedColumn(data=fitted_major_err_arr, name='fitted_major_err', mask=np.isnan(fitted_major_err_arr), unit=u.arcsec, fill_value=-999)  
+    fitted_minor_err_column = MaskedColumn(data=fitted_minor_err_arr, name='fitted_minor_err', mask=np.isnan(fitted_minor_err_arr), unit=u.arcsec, fill_value=-999)  
+    pa_column = MaskedColumn(data=pa_arr, name='pa', mask=np.isnan(pa_arr), unit=u.deg, fill_value=-999) 
+    pa_err_column = MaskedColumn(data=pa_err_arr, name='pa_err', mask=pd.isnull(pa_err_arr), unit=u.deg, fill_value=-999) 
+    flux_column = MaskedColumn(data=flux_arr, name='flux', mask=np.isnan(flux_arr), unit=u.Jy, fill_value=-999)
+    flux_err_column = MaskedColumn(data=flux_err_arr, name='flux_err', mask=np.isnan(flux_err_arr), unit=u.Jy, fill_value=-999)
+    deconvolved_major_column = MaskedColumn(data=deconvolved_major_arr, name='deconvolved_major', mask=np.isnan(deconvolved_major_arr), unit=u.arcsec, fill_value=-999)
+    deconvolved_minor_column = MaskedColumn(data=deconvolved_minor_arr, name='deconvolved_minor', mask=np.isnan(deconvolved_minor_arr), unit=u.arcsec, fill_value=-999)
+    peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
+
+    save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, savedir=savedir)
+                      
+    
 
 
 
