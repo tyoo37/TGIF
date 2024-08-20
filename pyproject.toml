@@ -11,4 +11,5 @@ dependencies = [
     "scipy",
     "astropy",
     "matplotlib",
+    "pandas"
 ]
