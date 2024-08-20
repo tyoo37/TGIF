@@ -69,8 +69,19 @@ peakxy_b6 = np.vstack((catalog['b6_xpix'], catalog['b6_ypix'])).T
 peakxy_sky_b3 = np.vstack((catalog['b3_xsky'], catalog['b3_ysky'])).T
 peakxy_sky_b6 = np.vstack((catalog['b6_xsky'], catalog['b6_ysky'])).T
 
-tgif.plot_and_save_fitting_results(image_b6, peakxy_b6, my_beamNB6, wcsNB6, scaleNB6, rad_multiplier=10, plot_init_fit=False,savedir='w51e_b6_test.fits',label='w51e_b6')
-
+tgif.plot_and_save_fitting_results(image_b6, peakxy_b6, my_beamNB6, wcsNB6, scaleNB6, fitting_size=0.6, savedir='w51e_b6_test.fits',label='w51e_b6',
+                                   vmin=None, vmax=None, maximum_size=4,
+                                  fitting_size_dict={10: 1,
+                                                    13: 1,
+                                                    20: 1,
+                                                    21: 1,
+                                                    30: 1.5,
+                                                    32: 0.5,
+                                                    35: 0.5,
+                                                    38: 1.5,
+                                                    39: 2,
+                                                    48: 1.5,
+                                                    56: 0.6})
 ```
 
 
