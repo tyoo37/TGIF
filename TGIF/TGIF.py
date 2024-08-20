@@ -20,6 +20,7 @@ import regions
 from regions import  EllipseAnnulusPixelRegion
 import lmfit
 from lmfit.lineshapes import gaussian2d
+import pandas as pd
 
 
 def gaussian(x, mu, sig, norm):
@@ -830,7 +831,6 @@ def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, p
         flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale.to(u.deg))**2 * u.mJy # mJy/beam -> mJy/pix**2
     
     flux = 2*np.pi*flux_in_pix*sigma_x*sigma_y
-    print(sigma_x_err,sigma_x,sigma_y_err,sigma_y)
     fluxerr = flux * ((np.array(sigma_x_err)/np.array(sigma_x))**2 + (np.array(sigma_y_err)/np.array(sigma_y))**2)
     #fluxerr = flux * np.sqrt((norm_err/norm)**2 + (sigma_x_err/sigma_x)**2 + (sigma_y_err/sigma_y)**2)
     
@@ -839,22 +839,35 @@ def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, p
 
        
 def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, pa_err,
-                         flux, flux_err, deconvolved_major_arr, deconvolved_minor_arr, pixel_scale,
+                         flux, flux_err, deconvolved_major_arr, deconvolved_minor_arr,
                          savedir='./'):
     
     
-
     tab = Table([flux, flux_err, 
                  pa*u.deg, pa_err*u.deg, 
-                 fitted_major*pixel_scale, major_err*pixel_scale,
-                fitted_minor*pixel_scale, minor_err*pixel_scale,
+                 fitted_major, major_err,
+                 fitted_minor, minor_err,
                 deconvolved_major_arr*u.deg, deconvolved_minor_arr*u.deg],
                 names=('flux', 'flux_err',
-                        'pa', 'pa_err'
+                        'pa', 'pa_err',
                        'fitted_major', 'fitted_major_err',
                        'fitted_minor', 'fitted_minor_err', 
                        'deconvolved_major', 'deconvolved_minor', 
                        ))
+    tab['flux'].mask = pd.isnull(tab['flux'])
+    tab['flux_err'].mask = pd.isnull(tab['flux_err'])
+    tab['pa'].mask = pd.isnull(tab['pa'])
+    tab['pa_err'].mask = pd.isnull(tab['pa_err'])
+    tab['fitted_major'].mask = pd.isnull(tab['fitted_major'])
+    tab['fitted_major_err'].mask = pd.isnull(tab['fitted_major_err'])
+    tab['fitted_minor'].mask = pd.isnull(tab['fitted_minor'])
+    tab['fitted_minor_err'].mask = pd.isnull(tab['fitted_minor_err'])
+    tab['deconvolved_major'].mask = pd.isnull(tab['deconvolved_major'])
+    tab['deconvolved_minor'].mask = pd.isnull(tab['deconvolved_minor'])
+
+
+
+    tab.pprint_all()
     tab.write(savedir, format='fits', overwrite=True)
 
 def redefine_center(img, positions, searching_rad=4):
@@ -944,11 +957,23 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             pa_err = None
         fitted_major_err = results.params['sigma_x'].stderr
         fitted_minor_err = results.params['sigma_y'].stderr
-        fitted_major_arr.append(fitted_major.value)
-        fitted_minor_arr.append(fitted_minor.value)
-        fitted_major_err_arr.append(fitted_major_err)
-        fitted_minor_err_arr.append(fitted_minor_err)
-
+        if fitted_major.value is not None:
+            fitted_major_arr.append(fitted_major.value*pixel_scale)
+        else:
+            fitted_major_arr.append(np.nan)
+        if fitted_minor.value is not None:
+            fitted_minor_arr.append(fitted_minor.value*pixel_scale)
+        else:
+            fitted_minor_arr.append(np.nan)
+        if fitted_major_err is not None:
+            fitted_major_err_arr.append(fitted_major_err*pixel_scale)
+        else:
+            fitted_major_err_arr.append(np.nan)
+        if fitted_minor_err is not None:
+            fitted_minor_err_arr.append(fitted_minor_err*pixel_scale)
+        else:
+            fitted_minor_err_arr.append(np.nan)
+            
 
         plot_for_individual(data, xcen, ycen, peakxy[i,0], peakxy[i,1], pa, fitted_major, fitted_minor, peak, pixel_scale, bkg, fitted_major_err, fitted_minor_err,  
                             beam, wcsNB,
@@ -985,7 +1010,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         peak_arr.append(peak)
        
 
-        pa_arr.append(np.pi-pa)
+        pa_arr.append(pa)
         pa_err_arr.append(pa_err)
         flux_arr.append(flux)
         flux_err_arr.append(flux_err)
@@ -995,7 +1020,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
 
  
     save_fitting_results(fitted_major_arr, fitted_minor_arr, fitted_major_err_arr, fitted_minor_err_arr, 
-                     pa_arr, pa_err_arr, flux_arr, flux_err_arr, deconvolved_major_arr, deconvolved_minor_arr,  pixel_scale,
+                     pa_arr, pa_err_arr, flux_arr, flux_err_arr, deconvolved_major_arr, deconvolved_minor_arr,
                         savedir=savedir)
 
 
