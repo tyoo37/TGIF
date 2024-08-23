@@ -24,7 +24,7 @@ One of the good way to use this function is just running the code with default s
 
 
 Here's an example jupyter notebook.
-```
+```python
 import TGIF.TGIF as tgif 
 import Paths.Paths as paths # This is for reading python file storing some file paths. you don't have to use this.
 from radio_beam import Beam
