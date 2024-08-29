@@ -327,7 +327,7 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
 
 
 
-def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor=1e6):
+def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor=10):
     """
     this residual function is the function that is required to be minimized
     
@@ -361,11 +361,12 @@ def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor
     reg = CirclePixelRegion(center,rad)
     mask = reg.to_mask()
     offset = image-model
-    masked_offset = mask.multiply(offset)
-    masked_offset[masked_offset>0] = masked_offset[masked_offset>0]/10
+    #offset[offset>0] = offset[offset>0]/lambda_factor
     #masked_offset[masked_offset<0] = masked_offset[masked_offset<0] * 100000
-    #masked_offset[masked_offset<0] = masked_offset[masked_offset<0]*np.exp(lambda_factor*np.abs(masked_offset[masked_offset<0]))
+    offset[offset<0] = offset[offset<0]*np.exp(lambda_factor*np.abs(offset[offset<0]))
+    masked_offset = mask.multiply(offset)
 
+    #print('size',len(masked_offset[np.isfinite(masked_offset)]))
     return masked_offset[np.isfinite(masked_offset)]
     
 
@@ -437,7 +438,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
         niter=0
         vec_init = (0,0)
         vec = vec_init
-        while(np.abs(offset_major)>adjust_th or np.abs(offset_minor)>adjust_th and niter < maxnumiter): 
+        while((np.abs(offset_major)>adjust_th or np.abs(offset_minor)>adjust_th) and niter < maxnumiter): 
             # run iterative process to find the exact center until the offset made each step is lower than certain threshold
             adjusted_peakpos_x, adjusted_peakpos_y, offset_major, adjusted_peakval_maj = subpixel_adjustment(profile1d_maj, distarr,subpixel_adjust_angle, vec, numpix_adjust=numpix_adjust)
             xcen_subpixel = xcen_subpixel + adjusted_peakpos_x
@@ -454,22 +455,30 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
 
             niter+=1
 
-    print('total offset in subpixel_offset_adjust, ', vec)
+        print('total offset in subpixel_offset_adjust, ', vec)
+        xcen_subpixel_val = xcen_subpixel.value
+        ycen_subpixel_val = ycen_subpixel.value
+
+    else:
+        xcen_subpixel_val = positions[0] - cutout.xmin_original
+        ycen_subpixel_val = positions[1] - cutout.ymin_original
+        adjusted_peakval_min = cutout_data[int(ycen_subpixel_val), int(xcen_subpixel_val)]
     y,x = np.mgrid[:cutout_data.shape[0],:cutout_data.shape[1]]
 
     #approx_peak = np.nanmax(cutout_data)
    
+    sig_to_fwhm = 2*np.sqrt(2*np.log(2))
 
     init_pa = 180-beam_pa.value
     if init_pa>180:
         init_pa = init_pa-180
-    p0 = [xcen_subpixel.value, ycen_subpixel.value, init_pa*np.pi/180, numpix_major/np.log(8), numpix_minor/np.log(8), adjusted_peakval_min, 0]
+    p0 = [xcen_subpixel_val, ycen_subpixel_val, init_pa*np.pi/180, numpix_major/sig_to_fwhm, numpix_minor/sig_to_fwhm, adjusted_peakval_min, 0]
     print('p0',p0)
-    bounds= ((0.99*xcen_subpixel.value, 1.01*xcen_subpixel.value), 
-             (0.99*ycen_subpixel.value, 1.01*ycen_subpixel.value), 
+    bounds= ((0.99*xcen_subpixel_val, 1.01*xcen_subpixel_val), 
+             (0.99*ycen_subpixel_val, 1.01*ycen_subpixel_val), 
              (0, np.pi), 
-             (0.8*numpix_major/np.log(8), numpix_major/np.log(8)*maximum_size), 
-             (0.8*numpix_minor/np.log(8), numpix_minor/np.log(8)*maximum_size), 
+             (0.8*numpix_major/sig_to_fwhm, numpix_major/sig_to_fwhm*maximum_size), 
+             (0.8*numpix_minor/sig_to_fwhm, numpix_minor/sig_to_fwhm*maximum_size), 
              (0.9*adjusted_peakval_min, 1.1*adjusted_peakval_min), 
              (-1e-4, 1e-4))
 
@@ -487,15 +496,15 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
     params.add('sigma_x', value=p0[3], min=bounds[3][0], max=bounds[3][1], expr='sigma_diff + sigma_y')
     params.add('shift', value=p0[6], min=bounds[6][0], max=bounds[6][1])
     results = lmfit.minimize(residual, params, 
-                             args=(x, y, cutout_data, xcen_subpixel.value, ycen_subpixel.value, adjusted_peakval_min), 
+                             args=(x, y, cutout_data, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min), 
                              method='leastsq')
     if report_fit:
         lmfit.report_fit(results)
     if plot:
-        center = PixCoord(xcen_subpixel.value, ycen_subpixel.value)
+        center = PixCoord(xcen_subpixel_val, ycen_subpixel_val)
         reg = CirclePixelRegion(center,10)
         mask = reg.to_mask()
-        model =  gaussian2d(x, y, xcen_subpixel.value, ycen_subpixel.value, adjusted_peakval_min,  **results.params)
+        model =  gaussian2d(x, y, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min,  **results.params)
         offset = cutout_data-model
         masked_offset = mask.multiply(offset)
         masked_image = mask.multiply(cutout_data)
@@ -506,8 +515,8 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
         ax1 = fig.add_axes([0,0,0.33,1])
         imshow1=ax1.imshow(masked_image, origin='lower', cmap=plt.get_cmap('inferno'), norm=colors.PowerNorm(gamma=0.5,
                                             vmin=0,vmax=np.nanmax(masked_image)), extent=mask.bbox.extent)
-        ax1.scatter(xcen_subpixel.value, ycen_subpixel.value, marker='o', c='cyan', s=50)
-        ellipse = Ellipse([xcen_subpixel.value, ycen_subpixel.value],
+        ax1.scatter(xcen_subpixel_val, ycen_subpixel_val, marker='o', c='cyan', s=50)
+        ellipse = Ellipse([xcen_subpixel_val, ycen_subpixel_val],
                           width=results.params['sigma_x']*2*np.sqrt(2*np.log(2)),
                           height=results.params['sigma_y']*2*np.sqrt(2*np.log(2)),facecolor='none',
                           angle=results.params['theta']*180/np.pi,edgecolor='cyan',lw=2)
@@ -548,7 +557,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
         plt.show()
         plt.close()
 
-    return cutout, results, xcen_subpixel.value + cutout.xmin_original, ycen_subpixel.value + cutout.ymin_original, adjusted_peakval_min
+    return cutout, results, xcen_subpixel_val + cutout.xmin_original, ycen_subpixel_val + cutout.ymin_original, adjusted_peakval_min
 
 def add_beam(ax,xpos,ypos,beam, pixel_scale,color='w',square=False,square_size=800):
     width = beam.major / pixel_scale
@@ -857,10 +866,12 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, 
                        'deconvolved_major', 'deconvolved_minor', 
                        ))
 
-
-
     tab.pprint_all()
-    tab.write(savedir, format='fits', overwrite=True)
+
+    if savedir is not None:
+        tab.write(savedir, format='fits', overwrite=True)
+
+    return tab
 
 def redefine_center(img, positions, searching_rad=4):
     """
@@ -871,13 +882,15 @@ def redefine_center(img, positions, searching_rad=4):
     ycen, xcen = np.unravel_index(np.nanargmax(cutout.data), cutout.data.shape)
     return xcen+cutout.xmin_original, ycen+cutout.ymin_original
 
+    
 
 def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                          fitting_size = 4,
                         issqrt=True, vmin=None, vmax=None,
                         flux_unit='Jy/beam',
                         bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2, maximum_size=4,
-                        savedir='w51e_b3_test.fits',label='w51e_b3', show=True, fitting_size_dict={}):
+                        savedir=None,label=None, show=True, 
+                        fix_pos_idx=[],fitting_size_dict={}):
     
     num_source = len(peakxy[:,0])
     
@@ -914,9 +927,16 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         
         if i in fitting_size_dict:
             fitting_size = fitting_size_dict[i]
+
+        if i in fix_pos_idx:
+            do_subpixel_adjust = False
+        else:
+            do_subpixel_adjust = True    
         positions_original = (peakxy[i,0], peakxy[i,1])
         positions = redefine_center(data, positions_original)
-        cutout_small, results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, fitting_size=fitting_size, maximum_size=maximum_size)
+        cutout_small, results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
+                                                                                                 subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
+                                                                                                 fitting_size=fitting_size, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
         popt = results.params
         xcen_init = xcen_fit_init
         ycen_init = ycen_fit_init
@@ -926,10 +946,11 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         print('xcen_init,ycen_init,pa_init,fitted_major_init,fitted_minor_init',xcen_init,ycen_init,pa_init,fitted_major_init,fitted_minor_init)
         bkg, bkg_mad = get_local_bkg(data, xcen_init, ycen_init, pa_init, peakxy, wcsNB, beam, pixel_scale,
                                      inner_width=bkg_inner_width*fitted_major_init, outer_width=(bkg_inner_width+bkg_annulus_width)*fitted_major_init, 
-                                     inner_height=bkg_inner_width*fitted_major_init, outer_height=(bkg_inner_width+bkg_annulus_width)*fitted_major_init)
+                                     inner_height=bkg_inner_height*fitted_major_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_major_init)
         
       
-        cutout, results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False)
+        cutout, results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
+                                                                             subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
         popt = results.params
         #pcov = results.uvars()
         #print('pcov',pcov)
@@ -947,7 +968,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         if results.params['theta'].stderr is not None:
             pa_err = results.params['theta'].stderr * 180 / np.pi
         else:
-            pa_err = None
+            pa_err = np.nan
         fitted_major_err = results.params['sigma_x'].stderr
         fitted_minor_err = results.params['sigma_y'].stderr
 
@@ -1030,9 +1051,10 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
     deconvolved_minor_column = MaskedColumn(data=deconvolved_minor_arr, name='deconvolved_minor', mask=np.isnan(deconvolved_minor_arr), unit=u.arcsec, fill_value=-999)
     peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
 
-    save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, savedir=savedir)
+    tab = save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, 
+                               flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, savedir=savedir)
                       
-    
+    return tab
 
 
 
