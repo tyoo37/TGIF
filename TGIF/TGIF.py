@@ -111,11 +111,18 @@ def slice_bbox_from_bbox(bbox1, bbox2):
     return view1,view2
 
 def subpixel_adjustment(profile1d, distarr, inclination, vec_from_cen, numpix_adjust=11,
-                        verbose=False, isstrict=False,small_value=2e-7, tolerance=5, test_plot=False):
-    
+                        verbose=False, isstrict=False,small_value=2e-7, tolerance=5, test_plot=False,):
+    isnotfound = False
+
     half_numpoints = int(len(profile1d)/2)
     left_to_peak = half_numpoints-int(numpix_adjust/2)
     right_to_peak = half_numpoints+int(numpix_adjust/2)
+    if left_to_peak<0:
+        print(left_to_peak, half_numpoints, numpix_adjust)
+        raise ValueError('left_to_peak cannot be negative')
+    if right_to_peak>len(profile1d):
+        print(right_to_peak, half_numpoints, numpix_adjust)
+        raise ValueError('right_to_peak cannot be larger than the length of the profile')
     profiles_around_peak = profile1d[left_to_peak:right_to_peak+1]
     pixels_around_peak = distarr[left_to_peak:right_to_peak+1]
     
@@ -125,14 +132,16 @@ def subpixel_adjustment(profile1d, distarr, inclination, vec_from_cen, numpix_ad
         profiles_around_peak = profiles_around_peak[isfinite][insideind]
     except:
         print(profiles_around_peak, insideind)
-        raise ValueError('error in subpixel_adjustment')
+        print('error in subpixel_adjustment')
+        isnotfound = True
     pixels_around_peak = pixels_around_peak[isfinite][insideind]
     try:
         peakpos = pixels_around_peak[np.argmax(profiles_around_peak)]
-                
     except:
         print(profile1d, half_numpoints, numpix_adjust,profiles_around_peak, insideind)
-        raise ValueError('error in subpixel_adjustment')
+        print('error in subpixel_adjustment')
+        isnotfound = True
+
     distarr_step = np.abs(distarr[1]-distarr[0])
 
     try:
@@ -142,11 +151,10 @@ def subpixel_adjustment(profile1d, distarr, inclination, vec_from_cen, numpix_ad
         adjusted_offset = popt[0]
         adjusted_peakval = popt[2]                                                                               
     except:
-        print('fitting failed in subpixel adjustment')
-        print(np.max(profiles_around_peak)-small_value, 0.999999999*np.max(profiles_around_peak))
-        adjusted_offset = popt[0]
+       # print('fitting failed in subpixel adjustment')
+       # print(np.max(profiles_around_peak)-small_value, 0.999999999*np.max(profiles_around_peak))
         adjusted_offset=0
-        adjusted_peakval=profiles_around_peak[int(len(profiles_around_peak)/2)]-small_value
+        adjusted_peakval=profile1d[half_numpoints]-small_value
     """
     if np.abs(adjusted_offset)>tolerance:
         print('the peak is made at another pixel')
@@ -188,12 +196,18 @@ def subpixel_adjustment(profile1d, distarr, inclination, vec_from_cen, numpix_ad
         plt.show()
         plt.close()
     if np.abs(xoffset) > 0.5 or np.abs(yoffset) > 0.5:
+        #pass
         print('the peak is made at another pixel')
     if verbose:
-        print('adjusted_offset, adjusted_offset_x, adjusted_offset_y, adjusted_peakval, pcov = ', 
-          adjusted_offset, adjusted_offset_x, adjusted_offset_y, adjusted_peakval, pcov)
+        pass  
+      #  print('adjusted_offset, adjusted_offset_x, adjusted_offset_y, adjusted_peakval, pcov = ', 
+    #     adjusted_offset, adjusted_offset_x, adjusted_offset_y, adjusted_peakval, pcov)
     #update xcen,ycen
-    
+    if isnotfound:
+        adjusted_peakval = profile1d[half_numpoints]
+        adjusted_offset_x = 0
+        adjusted_offset_y = 0
+        adjusted_offset = 0
 
     return adjusted_offset_x, adjusted_offset_y, adjusted_offset, adjusted_peakval
 
@@ -240,12 +254,7 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
     """
 
     
-    if issky:
-        cen_pix = wcsNB.wcs_world2pix(peakxy_all,0)
-        cen_world = peakxy_all
-    else:
-        cen_pix = peakxy_all
-        cen_world = wcsNB.wcs_pix2world(peakxy_all,0)
+    
         
     bkg_region = EllipseAnnulusPixelRegion(center=PixCoord(x=xcen, y=ycen),
                                        inner_width=inner_width,
@@ -254,44 +263,56 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
                                        outer_height=outer_height,
                                        angle=angle*u.deg)
     
-    
-    beam_major = beam.major
-    beam_minor = beam.minor
-    beam_pa = beam.pa
-    num_source = len(cen_world[:,0])
-    positions_all = coordinates.SkyCoord([[cen_world[i,0],cen_world[i,1]] for i in range(num_source)], frame=wcs.utils.wcs_to_celestial_frame(wcsNB).name,unit=(u.deg,u.deg))
 
     mask = bkg_region.to_mask()
     data_in_cutout = mask.cutout(data)
     masked_data = data_in_cutout * mask.data
     maskbool = mask.data.astype('bool')
-    test_region = EllipseAnnulusPixelRegion(center=PixCoord(x=xcen, y=ycen),
-                                       outer_width=outer_width+beam_major.value/pixel_scale.value,
-                                       inner_width=inner_width-beam_major.value/pixel_scale.value,
-                                       outer_height=outer_height+beam_minor.value/pixel_scale.value,
-                                       inner_height=inner_height-beam_minor.value/pixel_scale.value,
-                                       angle=angle*u.deg)
+
+    beam_major = beam.major
+    beam_minor = beam.minor
+    beam_pa = beam.pa
+
+    if peakxy_all is not None:
+        if issky:
+            cen_pix = wcsNB.wcs_world2pix(peakxy_all,0)
+            cen_world = peakxy_all
+        else:
+            cen_pix = peakxy_all
+            cen_world = wcsNB.wcs_pix2world(peakxy_all,0)
     
-    nearby_matches =[PixCoord(peakxy_all[i,0],peakxy_all[i,1]) in test_region for i in range(num_source)]
- 
-    if any(nearby_matches):
+  
+        num_source = len(cen_world[:,0])
+        positions_all = coordinates.SkyCoord([[cen_world[i,0],cen_world[i,1]] for i in range(num_source)], frame=wcs.utils.wcs_to_celestial_frame(wcsNB).name,unit=(u.deg,u.deg))
+
+   
+        test_region = EllipseAnnulusPixelRegion(center=PixCoord(x=xcen, y=ycen),
+                                        outer_width=outer_width+beam_major.value/pixel_scale.value,
+                                        inner_width=inner_width-beam_major.value/pixel_scale.value,
+                                        outer_height=outer_height+beam_minor.value/pixel_scale.value,
+                                        inner_height=inner_height-beam_minor.value/pixel_scale.value,
+                                        angle=angle*u.deg)
         
-        inds = np.where(nearby_matches)[0].tolist()
-        if len(inds)>1:
-            dist = np.sqrt((peakxy_all[inds,0]-xcen)**2+(peakxy_all[inds,1]-ycen)**2)
-            myself = np.argmin(dist)
-            print(inds, len(inds),myself)
-            inds.remove(inds[myself])
-            for ind in inds:
-                
-                maskoutreg = regions.EllipseSkyRegion(center=positions_all[ind], width=2*beam_major,
-                                                        height=2*beam_minor,
-                                                        angle=180*u.deg-beam.pa)
-                mpixreg = maskoutreg.to_pixel(wcsNB)
-                mmask = mpixreg.to_mask()
-                view, mview = slice_bbox_from_bbox(mask.bbox, mmask.bbox)
-                maskbool[view] &= ~mmask.data.astype('bool')[mview]
-                masked_data = masked_data * maskbool
+        nearby_matches =[PixCoord(peakxy_all[i,0],peakxy_all[i,1]) in test_region for i in range(num_source)]
+ 
+        if any(nearby_matches):
+            
+            inds = np.where(nearby_matches)[0].tolist()
+            if len(inds)>1:
+                dist = np.sqrt((peakxy_all[inds,0]-xcen)**2+(peakxy_all[inds,1]-ycen)**2)
+                myself = np.argmin(dist)
+                print(inds, len(inds),myself)
+                inds.remove(inds[myself])
+                for ind in inds:
+                    
+                    maskoutreg = regions.EllipseSkyRegion(center=positions_all[ind], width=2*beam_major,
+                                                            height=2*beam_minor,
+                                                            angle=180*u.deg-beam.pa)
+                    mpixreg = maskoutreg.to_pixel(wcsNB)
+                    mmask = mpixreg.to_mask()
+                    view, mview = slice_bbox_from_bbox(mask.bbox, mmask.bbox)
+                    maskbool[view] &= ~mmask.data.astype('bool')[mview]
+                    masked_data = masked_data * maskbool
     background_mask = maskbool.copy().astype('bool')
     #background_mask[sub_bbox_slice(mask.bbox, smaller_mask.bbox)] &= ~smaller_mask.data.astype('bool')
     masked_cutout = masked_data[background_mask]
@@ -304,7 +325,7 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
         source_mask = source_region.to_mask()
         source_mask_cutout = source_mask.cutout(data)
         thres = np.min(source_mask_cutout)
-        print('thres',thres)
+       # print('thres',thres)
         masked_cutout = masked_cutout[np.where((masked_cutout<thres)&(np.isfinite(masked_cutout)))]
     background = np.nanmedian(masked_cutout)
     mad = mad_std(masked_cutout, ignore_nan=True)
@@ -371,7 +392,7 @@ def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor
     
 
 def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=0*u.deg, fitting_size=1, background=None, plot=False, report_fit=True,
-                        do_subpixel_adjust=True, iterstep=0.01, adjust_th=0.1, maxnumiter=10, numpoints=199, maximum_size=4, flux_unit='Jy/beam'):
+                        do_subpixel_adjust=True, iterstep=0.01, adjust_th=0.1, maxnumiter=10, numpoints=1999, maximum_size=4, flux_unit='Jy/beam'):
     """
     fit the gaussian model for a single source
 
@@ -421,14 +442,16 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
     beam_pa = beam.pa
     numpix_major = beam.major.value/pixel_scale.value
     numpix_minor = beam.minor.value/pixel_scale.value
-    print('fitting array size, ', 1+int(fitting_size*numpix_major), 1+int(fitting_size*numpix_major))
+    #print('fitting array size, ', 1+int(fitting_size*numpix_major), 1+int(fitting_size*numpix_major))
     cutout = Cutout2D(data, positions, (1+int(fitting_size*numpix_major), 1+int(fitting_size*numpix_major)), wcs=wcsNB, mode='partial')
+    print('positions',positions,1+int(fitting_size*numpix_major))
     cutout_data = cutout.data
     if background is not None:
         cutout_data = cutout_data - background
     if do_subpixel_adjust:
         xcen_subpixel = positions[0] - cutout.xmin_original
         ycen_subpixel = positions[1] - cutout.ymin_original
+        print(xcen_subpixel, ycen_subpixel)
         distarr, profile1d_maj, profile1d_min = get_profile1d(cutout_data,xcen_subpixel,ycen_subpixel, subpixel_adjust_angle, numpoints=numpoints, distarr_step=iterstep)
 
         numpix_adjust =int(numpix_major/iterstep)
@@ -441,8 +464,11 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
         while((np.abs(offset_major)>adjust_th or np.abs(offset_minor)>adjust_th) and niter < maxnumiter): 
             # run iterative process to find the exact center until the offset made each step is lower than certain threshold
             adjusted_peakpos_x, adjusted_peakpos_y, offset_major, adjusted_peakval_maj = subpixel_adjustment(profile1d_maj, distarr,subpixel_adjust_angle, vec, numpix_adjust=numpix_adjust)
+           
             xcen_subpixel = xcen_subpixel + adjusted_peakpos_x
             ycen_subpixel = ycen_subpixel + adjusted_peakpos_y
+            print(xcen_subpixel, ycen_subpixel)
+
             distarr, profile1d_maj, profile1d_min = get_profile1d(cutout_data,xcen_subpixel, ycen_subpixel, subpixel_adjust_angle,numpoints=numpoints, distarr_step=iterstep)
             vec = (vec[0]+adjusted_peakpos_x, vec[1]+adjusted_peakpos_y)  
             
@@ -450,6 +476,8 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
             adjusted_peakpos_x, adjusted_peakpos_y, offset_minor, adjusted_peakval_min = subpixel_adjustment(profile1d_min, distarr,subpixel_adjust_angle+90*u.deg, vec, numpix_adjust=numpix_adjust)
             xcen_subpixel = xcen_subpixel + adjusted_peakpos_x
             ycen_subpixel = ycen_subpixel + adjusted_peakpos_y
+            print(xcen_subpixel, ycen_subpixel)
+
             distarr, profile1d_maj, profile1d_min  = get_profile1d(cutout_data,xcen_subpixel, ycen_subpixel, subpixel_adjust_angle, numpoints=numpoints, distarr_step=iterstep)
             vec = (vec[0]+adjusted_peakpos_x, vec[1]+adjusted_peakpos_y)  
 
@@ -473,7 +501,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
     if init_pa>180:
         init_pa = init_pa-180
     p0 = [xcen_subpixel_val, ycen_subpixel_val, init_pa*np.pi/180, numpix_major/sig_to_fwhm, numpix_minor/sig_to_fwhm, adjusted_peakval_min, 0]
-    print('p0',p0)
+    #print('p0',p0)
     bounds= ((0.99*xcen_subpixel_val, 1.01*xcen_subpixel_val), 
              (0.99*ycen_subpixel_val, 1.01*ycen_subpixel_val), 
              (0, np.pi), 
@@ -482,7 +510,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
              (0.9*adjusted_peakval_min, 1.1*adjusted_peakval_min), 
              (-1e-4, 1e-4))
 
-    print('bounds',bounds)
+    #print('bounds',bounds)
     #bounds = Bounds((0.99*xcen_subpixel, 0.99*ycen_subpixel, 0, 0.4*numpix_major, 0.4*numpix_minor, 0.9*approx_peak),
     #           (1.01*xcen_subpixel, 1.01*ycen_subpixel, np.pi, numpix_major*2, numpix_minor*2, approx_peak))
     params = lmfit.Parameters()
@@ -557,7 +585,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
         plt.show()
         plt.close()
 
-    return cutout, results, xcen_subpixel_val + cutout.xmin_original, ycen_subpixel_val + cutout.ymin_original, adjusted_peakval_min
+    return results, xcen_subpixel_val + cutout.xmin_original, ycen_subpixel_val + cutout.ymin_original, adjusted_peakval_min
 
 def add_beam(ax,xpos,ypos,beam, pixel_scale,color='w',square=False,square_size=800):
     width = beam.major / pixel_scale
@@ -887,74 +915,27 @@ def redefine_center(img, positions, searching_rad=4):
 def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                          fitting_size = 4,
                         issqrt=True, vmin=None, vmax=None,
-                        flux_unit='Jy/beam',
+                        flux_unit='Jy/beam', do_subpixel_adjust=True,
                         bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2, maximum_size=4,
-                        savedir=None,label=None, show=True, 
+                        savedir=None,label=None, make_plot=True, show=True, 
                         fix_pos_idx=[],fitting_size_dict={}):
-    
-    num_source = len(peakxy[:,0])
-    
-    fitted_major_arr = []
-    fitted_minor_arr = []
-    peak_arr = []
-    pa_arr = []
-    fitted_major_err_arr = []
-    fitted_minor_err_arr = []
-    peak_err_arr = []
-    pa_err_arr = []
-    flux_arr = []
-    flux_err_arr = []  
-    deconvolved_major_arr = []
-    deconvolved_minor_arr = []
-
-    for i in range(num_source):
-       
-      
-        if peakxy[i,0]<0 or peakxy[i,1]<0 :
-            fitted_major_arr.append(np.nan)
-            fitted_minor_arr.append(np.nan)
-            peak_arr.append(np.nan)
-            fitted_major_err_arr.append(np.nan)
-            fitted_minor_err_arr.append(np.nan)
-            peak_err_arr.append(np.nan)
-            pa_arr.append(np.nan)
-            pa_err_arr.append(np.nan)
-            flux_arr.append(np.nan)
-            flux_err_arr.append(np.nan)
-            deconvolved_major_arr.append(np.nan)
-            deconvolved_minor_arr.append(np.nan)
-            continue
-        
-        if i in fitting_size_dict:
-            fitting_size = fitting_size_dict[i]
-
-        if i in fix_pos_idx:
-            do_subpixel_adjust = False
-        else:
-            do_subpixel_adjust = True    
-        positions_original = (peakxy[i,0], peakxy[i,1])
-        positions = redefine_center(data, positions_original)
-        cutout_small, results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
-                                                                                                 subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
-                                                                                                 fitting_size=fitting_size, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
+    if isinstance(peakxy, list):
+        positions = redefine_center(data, peakxy)
+        results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
+                                                                                                    subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
+                                                                                                    fitting_size=fitting_size, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
         popt = results.params
         xcen_init = xcen_fit_init
         ycen_init = ycen_fit_init
         pa_init = popt['theta'] * 180 / np.pi
         fitted_major_init = popt['sigma_x']
         fitted_minor_init = popt['sigma_y']
-        print('xcen_init,ycen_init,pa_init,fitted_major_init,fitted_minor_init',xcen_init,ycen_init,pa_init,fitted_major_init,fitted_minor_init)
-        bkg, bkg_mad = get_local_bkg(data, xcen_init, ycen_init, pa_init, peakxy, wcsNB, beam, pixel_scale,
-                                     inner_width=bkg_inner_width*fitted_major_init, outer_width=(bkg_inner_width+bkg_annulus_width)*fitted_major_init, 
-                                     inner_height=bkg_inner_height*fitted_major_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_major_init)
-        
-      
-        cutout, results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
-                                                                             subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
+        bkg, bkg_mad = get_local_bkg(data, xcen_init, ycen_init, pa_init, None, wcsNB, beam, pixel_scale,
+                                    inner_width=bkg_inner_width*fitted_major_init, outer_width=(bkg_inner_width+bkg_annulus_width)*fitted_major_init, 
+                                    inner_height=bkg_inner_height*fitted_major_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_major_init)
+        results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
+                                                                                subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
         popt = results.params
-        #pcov = results.uvars()
-        #print('pcov',pcov)
-        #print('popt',popt, cutout.shape)
 
         xcen = xcen_fit
         ycen = ycen_fit
@@ -962,9 +943,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         fitted_major = popt['sigma_x']
         fitted_minor = popt['sigma_y']
         peak = peak_fit
-        print('xcen, ycen, pa, fitted_major, fitted_minor, peak',xcen, ycen, pa, fitted_major, fitted_minor, peak)
-        #xcen_err = results.params['x_center'].stderr
-        #ycen_err = results.params['y_center'].stderr
+       #print('xcen, ycen, pa, fitted_major, fitted_minor, peak',xcen, ycen, pa, fitted_major, fitted_minor, peak)
         if results.params['theta'].stderr is not None:
             pa_err = results.params['theta'].stderr * 180 / np.pi
         else:
@@ -972,33 +951,15 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         fitted_major_err = results.params['sigma_x'].stderr
         fitted_minor_err = results.params['sigma_y'].stderr
 
-        if fitted_major.value is not None:
-            fitted_major_arr.append(fitted_major.value*pixel_scale.value)
-        else:
-            fitted_major_arr.append(np.nan)
-        if fitted_minor.value is not None:
-            fitted_minor_arr.append(fitted_minor.value*pixel_scale.value)
-        else:
-            fitted_minor_arr.append(np.nan)
-        if fitted_major_err is not None:
-            fitted_major_err_arr.append(fitted_major_err*pixel_scale.value)
-        else:
-            fitted_major_err_arr.append(np.nan)
-        if fitted_minor_err is not None:
-            fitted_minor_err_arr.append(fitted_minor_err*pixel_scale.value)
-        else:
-            fitted_minor_err_arr.append(np.nan)
-            
-
-        plot_for_individual(data, xcen, ycen, peakxy[i,0], peakxy[i,1], pa, fitted_major, fitted_minor, peak, pixel_scale, bkg, fitted_major_err, fitted_minor_err,  
-                            beam, wcsNB,
-                            idx=i, issqrt=issqrt,
-                            vmin=vmin, vmax=vmax,  
-                            plot_size=10, flux_unit = flux_unit,
-                            bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
-                            bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
-                            savedir='./image_new/',label=label, show=show)
-        
+        if make_plot:
+            plot_for_individual(data, xcen, ycen, peakxy[0], peakxy[1], pa, fitted_major, fitted_minor, peak, pixel_scale, bkg, fitted_major_err, fitted_minor_err,  
+                                    beam, wcsNB,
+                                    idx=0, issqrt=issqrt,
+                                    vmin=vmin, vmax=vmax,  
+                                    plot_size=10, flux_unit = flux_unit,
+                                    bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
+                                    bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
+                                    savedir='./image_new/',label=label, show=show)
         if fitted_major_err is not None:
             flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
         else:
@@ -1018,43 +979,173 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             deconvolved_minor = deconvolved.minor.value
         except:
             deconvolved_major =0
-            deconvolved_minor =0
+            deconvolved_minor =0   
 
-        deconvolved_major_arr.append(deconvolved_major)
-        deconvolved_minor_arr.append(deconvolved_minor)
-        peak_arr.append(peak)
-       
+        return flux, flux_err, pa, pa_err, fitted_major, fitted_major_err, fitted_minor, fitted_minor_err, deconvolved_major, deconvolved_minor
 
-        pa_arr.append(pa)
-        pa_err_arr.append(pa_err)
+    else:
 
-        if np.isfinite(flux):
-            flux_arr.append(flux.value)
-            flux_err_arr.append(flux_err.value)
+        num_source = len(peakxy[:,0])
+        
+        fitted_major_arr = []
+        fitted_minor_arr = []
+        peak_arr = []
+        pa_arr = []
+        fitted_major_err_arr = []
+        fitted_minor_err_arr = []
+        peak_err_arr = []
+        pa_err_arr = []
+        flux_arr = []
+        flux_err_arr = []  
+        deconvolved_major_arr = []
+        deconvolved_minor_arr = []
 
-        else:
-            flux_arr.append(flux)
-            flux_err_arr.append(flux_err)
+        for i in range(num_source):
+        
+        
+            if peakxy[i,0]<0 or peakxy[i,1]<0 :
+                fitted_major_arr.append(np.nan)
+                fitted_minor_arr.append(np.nan)
+                peak_arr.append(np.nan)
+                fitted_major_err_arr.append(np.nan)
+                fitted_minor_err_arr.append(np.nan)
+                peak_err_arr.append(np.nan)
+                pa_arr.append(np.nan)
+                pa_err_arr.append(np.nan)
+                flux_arr.append(np.nan)
+                flux_err_arr.append(np.nan)
+                deconvolved_major_arr.append(np.nan)
+                deconvolved_minor_arr.append(np.nan)
+                continue
+            
+            if i in fitting_size_dict:
+                fitting_size = fitting_size_dict[i]
 
-        print('i, xcen, ycen, pa, fitted_major, fitted_minor, peak,  pa_err, fitted_major_err, fitted_minor_err,',
-              i, xcen, ycen, pa, fitted_major.value, fitted_minor.value, peak,  pa_err, fitted_major_err, fitted_minor_err )
+            if i in fix_pos_idx:
+                do_subpixel_adjust = False
+            else:
+                do_subpixel_adjust = True    
+            positions_original = (peakxy[i,0], peakxy[i,1])
+            positions = redefine_center(data, positions_original)
+            results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
+                                                                                                    subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
+                                                                                                    fitting_size=fitting_size, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
+            popt = results.params
+            xcen_init = xcen_fit_init
+            ycen_init = ycen_fit_init
+            pa_init = popt['theta'] * 180 / np.pi
+            fitted_major_init = popt['sigma_x']
+            fitted_minor_init = popt['sigma_y']
+            bkg, bkg_mad = get_local_bkg(data, xcen_init, ycen_init, pa_init, peakxy, wcsNB, beam, pixel_scale,
+                                        inner_width=bkg_inner_width*fitted_major_init, outer_width=(bkg_inner_width+bkg_annulus_width)*fitted_major_init, 
+                                        inner_height=bkg_inner_height*fitted_major_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_major_init)
+            
+        
+            results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
+                                                                                subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
+            popt = results.params
+            #pcov = results.uvars()
+            #print('pcov',pcov)
+            #print('popt',popt, cutout.shape)
 
-    fitted_major_column = MaskedColumn(data=fitted_major_arr, name='fitted_major', mask=np.isnan(fitted_major_arr), unit=u.arcsec, fill_value=-999)
-    fitted_minor_column = MaskedColumn(data=fitted_minor_arr, name='fitted_minor', mask=np.isnan(fitted_minor_arr), unit=u.arcsec, fill_value=-999)
-    fitted_major_err_column = MaskedColumn(data=fitted_major_err_arr, name='fitted_major_err', mask=np.isnan(fitted_major_err_arr), unit=u.arcsec, fill_value=-999)  
-    fitted_minor_err_column = MaskedColumn(data=fitted_minor_err_arr, name='fitted_minor_err', mask=np.isnan(fitted_minor_err_arr), unit=u.arcsec, fill_value=-999)  
-    pa_column = MaskedColumn(data=pa_arr, name='pa', mask=np.isnan(pa_arr), unit=u.deg, fill_value=-999) 
-    pa_err_column = MaskedColumn(data=pa_err_arr, name='pa_err', mask=pd.isnull(pa_err_arr), unit=u.deg, fill_value=-999) 
-    flux_column = MaskedColumn(data=flux_arr, name='flux', mask=np.isnan(flux_arr), unit=u.Jy, fill_value=-999)
-    flux_err_column = MaskedColumn(data=flux_err_arr, name='flux_err', mask=np.isnan(flux_err_arr), unit=u.Jy, fill_value=-999)
-    deconvolved_major_column = MaskedColumn(data=deconvolved_major_arr, name='deconvolved_major', mask=np.isnan(deconvolved_major_arr), unit=u.arcsec, fill_value=-999)
-    deconvolved_minor_column = MaskedColumn(data=deconvolved_minor_arr, name='deconvolved_minor', mask=np.isnan(deconvolved_minor_arr), unit=u.arcsec, fill_value=-999)
-    peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
+            xcen = xcen_fit
+            ycen = ycen_fit
+            pa = popt['theta'] * 180 / np.pi
+            fitted_major = popt['sigma_x']
+            fitted_minor = popt['sigma_y']
+            peak = peak_fit
+            #xcen_err = results.params['x_center'].stderr
+            #ycen_err = results.params['y_center'].stderr
+            if results.params['theta'].stderr is not None:
+                pa_err = results.params['theta'].stderr * 180 / np.pi
+            else:
+                pa_err = np.nan
+            fitted_major_err = results.params['sigma_x'].stderr
+            fitted_minor_err = results.params['sigma_y'].stderr
 
-    tab = save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, 
-                               flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, savedir=savedir)
+            if fitted_major.value is not None:
+                fitted_major_arr.append(fitted_major.value*pixel_scale.value)
+            else:
+                fitted_major_arr.append(np.nan)
+            if fitted_minor.value is not None:
+                fitted_minor_arr.append(fitted_minor.value*pixel_scale.value)
+            else:
+                fitted_minor_arr.append(np.nan)
+            if fitted_major_err is not None:
+                fitted_major_err_arr.append(fitted_major_err*pixel_scale.value)
+            else:
+                fitted_major_err_arr.append(np.nan)
+            if fitted_minor_err is not None:
+                fitted_minor_err_arr.append(fitted_minor_err*pixel_scale.value)
+            else:
+                fitted_minor_err_arr.append(np.nan)
+                
+            if make_plot:
+                plot_for_individual(data, xcen, ycen, peakxy[i,0], peakxy[i,1], pa, fitted_major, fitted_minor, peak, pixel_scale, bkg, fitted_major_err, fitted_minor_err,  
+                                    beam, wcsNB,
+                                    idx=i, issqrt=issqrt,
+                                    vmin=vmin, vmax=vmax,  
+                                    plot_size=10, flux_unit = flux_unit,
+                                    bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
+                                    bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
+                                    savedir='./image_new/',label=label, show=show)
+            
+            if fitted_major_err is not None:
+                flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
+            else:
+                flux, flux_err = np.nan, np.nan
+            
+            major_fwhm = np.array(fitted_major.value) * 2*np.sqrt(2*np.log(2))
+            minor_fwhm = np.array(fitted_minor.value) * 2*np.sqrt(2*np.log(2))
+
+            fwhm_major_sky = major_fwhm * pixel_scale 
+            fwhm_minor_sky = minor_fwhm * pixel_scale 
+
+            fitted_gaussian_as_beam = Beam(major=fwhm_major_sky, minor=fwhm_minor_sky, pa=pa)
+        
+            try:
+                deconvolved = fitted_gaussian_as_beam.deconvolve(beam)
+                deconvolved_major = deconvolved.major.value
+                deconvolved_minor = deconvolved.minor.value
+            except:
+                deconvolved_major =0
+                deconvolved_minor =0
+
+            deconvolved_major_arr.append(deconvolved_major)
+            deconvolved_minor_arr.append(deconvolved_minor)
+            peak_arr.append(peak)
+        
+
+            pa_arr.append(pa)
+            pa_err_arr.append(pa_err)
+
+            if np.isfinite(flux):
+                flux_arr.append(flux.value)
+                flux_err_arr.append(flux_err.value)
+
+            else:
+                flux_arr.append(flux)
+                flux_err_arr.append(flux_err)
+
+            #print('i, xcen, ycen, pa, fitted_major, fitted_minor, peak,  pa_err, fitted_major_err, fitted_minor_err,',
+            #    i, xcen, ycen, pa, fitted_major.value, fitted_minor.value, peak,  pa_err, fitted_major_err, fitted_minor_err )
+
+        fitted_major_column = MaskedColumn(data=fitted_major_arr, name='fitted_major', mask=np.isnan(fitted_major_arr), unit=u.arcsec, fill_value=-999)
+        fitted_minor_column = MaskedColumn(data=fitted_minor_arr, name='fitted_minor', mask=np.isnan(fitted_minor_arr), unit=u.arcsec, fill_value=-999)
+        fitted_major_err_column = MaskedColumn(data=fitted_major_err_arr, name='fitted_major_err', mask=np.isnan(fitted_major_err_arr), unit=u.arcsec, fill_value=-999)  
+        fitted_minor_err_column = MaskedColumn(data=fitted_minor_err_arr, name='fitted_minor_err', mask=np.isnan(fitted_minor_err_arr), unit=u.arcsec, fill_value=-999)  
+        pa_column = MaskedColumn(data=pa_arr, name='pa', mask=np.isnan(pa_arr), unit=u.deg, fill_value=-999) 
+        pa_err_column = MaskedColumn(data=pa_err_arr, name='pa_err', mask=pd.isnull(pa_err_arr), unit=u.deg, fill_value=-999) 
+        flux_column = MaskedColumn(data=flux_arr, name='flux', mask=np.isnan(flux_arr), unit=u.Jy, fill_value=-999)
+        flux_err_column = MaskedColumn(data=flux_err_arr, name='flux_err', mask=np.isnan(flux_err_arr), unit=u.Jy, fill_value=-999)
+        deconvolved_major_column = MaskedColumn(data=deconvolved_major_arr, name='deconvolved_major', mask=np.isnan(deconvolved_major_arr), unit=u.arcsec, fill_value=-999)
+        deconvolved_minor_column = MaskedColumn(data=deconvolved_minor_arr, name='deconvolved_minor', mask=np.isnan(deconvolved_minor_arr), unit=u.arcsec, fill_value=-999)
+        peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
+
+        tab = save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, 
+                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, savedir=savedir)
                       
-    return tab
+        return tab
 
 
 
