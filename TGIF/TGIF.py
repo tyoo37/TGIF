@@ -273,6 +273,7 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
     beam_minor = beam.minor
     beam_pa = beam.pa
 
+    # masking the position where other neighboring sources lie
     if peakxy_all is not None:
         if issky:
             cen_pix = wcsNB.wcs_world2pix(peakxy_all,0)
