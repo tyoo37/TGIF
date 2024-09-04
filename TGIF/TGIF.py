@@ -879,6 +879,7 @@ def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, p
        
 def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, pa_err,
                          flux, flux_err, deconvolved_major_arr, deconvolved_minor_arr,
+                         peak_arr,
                          savedir='./', label='w51e',):
     
     from astropy.table import QTable
@@ -888,12 +889,13 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, 
                  pa, pa_err, 
                  fitted_major, major_err,
                  fitted_minor, minor_err,
-                deconvolved_major_arr, deconvolved_minor_arr],
+                deconvolved_major_arr, deconvolved_minor_arr, peak_arr],
                 names=('flux', 'flux_err',
                         'pa', 'pa_err',
                        'fitted_major', 'fitted_major_err',
                        'fitted_minor', 'fitted_minor_err', 
                        'deconvolved_major', 'deconvolved_minor', 
+                       'peak_flux'
                        ))
 
     tab.pprint_all()
@@ -1046,9 +1048,6 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
                                                                                 subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
             popt = results.params
-            #pcov = results.uvars()
-            #print('pcov',pcov)
-            #print('popt',popt, cutout.shape)
 
             xcen = xcen_fit
             ycen = ycen_fit
@@ -1056,6 +1055,10 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             fitted_major = popt['sigma_x']
             fitted_minor = popt['sigma_y']
             peak = peak_fit
+            if peak.value is not None:
+                peak_arr.append(peak)
+            else:
+                peak_arr.append(np.nan)
             #xcen_err = results.params['x_center'].stderr
             #ycen_err = results.params['y_center'].stderr
             if results.params['theta'].stderr is not None:
@@ -1115,7 +1118,6 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
 
             deconvolved_major_arr.append(deconvolved_major)
             deconvolved_minor_arr.append(deconvolved_minor)
-            peak_arr.append(peak)
         
 
             pa_arr.append(pa)
@@ -1145,7 +1147,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
 
         tab = save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, 
-                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, savedir=savedir, label=label)
+                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, peak_column, savedir=savedir, label=label)
                       
         return tab
 
