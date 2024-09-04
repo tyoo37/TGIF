@@ -878,7 +878,7 @@ def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, p
        
 def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, pa_err,
                          flux, flux_err, deconvolved_major_arr, deconvolved_minor_arr,
-                         savedir='./'):
+                         savedir='./', label='w51e',):
     
     from astropy.table import QTable
 
@@ -898,7 +898,7 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, 
     tab.pprint_all()
 
     if savedir is not None:
-        tab.write(savedir, format='fits', overwrite=True)
+        tab.write(savedir+'%s_tgif_tab.fits'%label, format='fits', overwrite=True)
 
     return tab
 
@@ -1089,7 +1089,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     plot_size=10, flux_unit = flux_unit,
                                     bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
                                     bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
-                                    savedir='./image_new/',label=label, show=show)
+                                    savedir=savedir,label=label, show=show)
             
             if fitted_major_err is not None:
                 flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
@@ -1144,7 +1144,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
 
         tab = save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, 
-                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, savedir=savedir)
+                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, savedir=savedir, label=label)
                       
         return tab
 
