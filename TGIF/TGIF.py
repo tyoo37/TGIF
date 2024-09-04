@@ -858,6 +858,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     plt.setp(plt.getp(cbar.ax.axes, 'xticklabels'), color='w')
     fig.patch.set_facecolor('white')
     plt.savefig(savedir+label+'_%06d.png'%idx)
+    print(savedir+label+'_%06d.png'%idx)
     if show:
         plt.show()
     plt.close()
