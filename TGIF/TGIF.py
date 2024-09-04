@@ -919,7 +919,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                         flux_unit='Jy/beam', do_subpixel_adjust=True,
                         bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2, maximum_size=4,
                         savedir=None,label=None, make_plot=True, show=True, 
-                        fix_pos_idx=[],fitting_size_dict={}):
+                        fix_pos_idx=[],fitting_size_dict={}, idx=0):
     if isinstance(peakxy, list):
         positions = redefine_center(data, peakxy)
         results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
@@ -933,7 +933,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         fitted_minor_init = popt['sigma_y']
         bkg, bkg_mad = get_local_bkg(data, xcen_init, ycen_init, pa_init, None, wcsNB, beam, pixel_scale,
                                     inner_width=bkg_inner_width*fitted_major_init, outer_width=(bkg_inner_width+bkg_annulus_width)*fitted_major_init, 
-                                    inner_height=bkg_inner_height*fitted_major_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_major_init)
+                                    inner_height=bkg_inner_height*fitted_minor_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_minor_init)
         results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
                                                                                 subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
         popt = results.params
@@ -955,7 +955,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         if make_plot:
             plot_for_individual(data, xcen, ycen, peakxy[0], peakxy[1], pa, fitted_major, fitted_minor, peak, pixel_scale, bkg, fitted_major_err, fitted_minor_err,  
                                     beam, wcsNB,
-                                    idx=0, issqrt=issqrt,
+                                    idx=idx, issqrt=issqrt,
                                     vmin=vmin, vmax=vmax,  
                                     plot_size=10, flux_unit = flux_unit,
                                     bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
