@@ -1055,7 +1055,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             fitted_major = popt['sigma_x']
             fitted_minor = popt['sigma_y']
             peak = peak_fit
-            if peak.value is not None:
+            if peak is not None:
                 peak_arr.append(peak)
             else:
                 peak_arr.append(np.nan)
