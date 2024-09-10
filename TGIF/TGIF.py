@@ -452,7 +452,6 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
     if do_subpixel_adjust:
         xcen_subpixel = positions[0] - cutout.xmin_original
         ycen_subpixel = positions[1] - cutout.ymin_original
-        print(xcen_subpixel, ycen_subpixel)
         distarr, profile1d_maj, profile1d_min = get_profile1d(cutout_data,xcen_subpixel,ycen_subpixel, subpixel_adjust_angle, numpoints=numpoints, distarr_step=iterstep)
 
         numpix_adjust =int(numpix_major/iterstep)
