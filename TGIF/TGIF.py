@@ -196,8 +196,8 @@ def subpixel_adjustment(profile1d, distarr, inclination, vec_from_cen, numpix_ad
         plt.show()
         plt.close()
     if np.abs(xoffset) > 0.5 or np.abs(yoffset) > 0.5:
-        #pass
-        print('the peak is made at another pixel')
+        pass
+        #print('the peak is made at another pixel')
     if verbose:
         pass  
       #  print('adjusted_offset, adjusted_offset_x, adjusted_offset_y, adjusted_peakval, pcov = ', 
@@ -302,7 +302,7 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
             if len(inds)>1:
                 dist = np.sqrt((peakxy_all[inds,0]-xcen)**2+(peakxy_all[inds,1]-ycen)**2)
                 myself = np.argmin(dist)
-                print(inds, len(inds),myself)
+                #print(inds, len(inds),myself)
                 inds.remove(inds[myself])
                 for ind in inds:
                     
@@ -445,7 +445,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
     numpix_minor = beam.minor.value/pixel_scale.value
     #print('fitting array size, ', 1+int(fitting_size*numpix_major), 1+int(fitting_size*numpix_major))
     cutout = Cutout2D(data, positions, (1+int(fitting_size*numpix_major), 1+int(fitting_size*numpix_major)), wcs=wcsNB, mode='partial')
-    print('positions',positions,1+int(fitting_size*numpix_major))
+    #print('positions',positions,1+int(fitting_size*numpix_major))
     cutout_data = cutout.data
     if background is not None:
         cutout_data = cutout_data - background
@@ -468,7 +468,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
            
             xcen_subpixel = xcen_subpixel + adjusted_peakpos_x
             ycen_subpixel = ycen_subpixel + adjusted_peakpos_y
-            print(xcen_subpixel, ycen_subpixel)
+            #print(xcen_subpixel, ycen_subpixel)
 
             distarr, profile1d_maj, profile1d_min = get_profile1d(cutout_data,xcen_subpixel, ycen_subpixel, subpixel_adjust_angle,numpoints=numpoints, distarr_step=iterstep)
             vec = (vec[0]+adjusted_peakpos_x, vec[1]+adjusted_peakpos_y)  
@@ -477,7 +477,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
             adjusted_peakpos_x, adjusted_peakpos_y, offset_minor, adjusted_peakval_min = subpixel_adjustment(profile1d_min, distarr,subpixel_adjust_angle+90*u.deg, vec, numpix_adjust=numpix_adjust)
             xcen_subpixel = xcen_subpixel + adjusted_peakpos_x
             ycen_subpixel = ycen_subpixel + adjusted_peakpos_y
-            print(xcen_subpixel, ycen_subpixel)
+            #print(xcen_subpixel, ycen_subpixel)
 
             distarr, profile1d_maj, profile1d_min  = get_profile1d(cutout_data,xcen_subpixel, ycen_subpixel, subpixel_adjust_angle, numpoints=numpoints, distarr_step=iterstep)
             vec = (vec[0]+adjusted_peakpos_x, vec[1]+adjusted_peakpos_y)  
@@ -858,7 +858,6 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     plt.setp(plt.getp(cbar.ax.axes, 'xticklabels'), color='w')
     fig.patch.set_facecolor('white')
     plt.savefig(savedir+label+'_%06d.png'%idx)
-    print(savedir+label+'_%06d.png'%idx)
     if show:
         plt.show()
     plt.close()
@@ -963,7 +962,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     plot_size=10, flux_unit = flux_unit,
                                     bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
                                     bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
-                                    savedir='./image_new/',label=label, show=show)
+                                    savedir=savedir,label=label, show=show)
         if fitted_major_err is not None:
             flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
         else:
