@@ -915,13 +915,13 @@ def redefine_center(img, positions, searching_rad=4):
     
 
 def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
-                         fitting_size = 4,
+                         fitting_size_default = 4,
                         issqrt=True, vmin=None, vmax=None,
                         flux_unit='Jy/beam', do_subpixel_adjust=True,
                         bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2, maximum_size=4,
                         savedir=None,label=None, make_plot=True, show=True, 
                         fix_pos_idx=[],fitting_size_dict={}, idx=0):
-    if isinstance(peakxy, list):
+    if isinstance(peakxy, list): #when the coordinates of a single source are given
         positions = redefine_center(data, peakxy)
         results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
                                                                                                     subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
@@ -985,7 +985,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
 
         return flux, flux_err, pa, pa_err, fitted_major, fitted_major_err, fitted_minor, fitted_minor_err, deconvolved_major, deconvolved_minor
 
-    else:
+    else: #when the coordinates of multiple sources are given
 
         num_source = len(peakxy[:,0])
         
@@ -1022,7 +1022,8 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             
             if i in fitting_size_dict:
                 fitting_size = fitting_size_dict[i]
-
+            else:
+                fitting_size = fitting_size_default
             if i in fix_pos_idx:
                 do_subpixel_adjust = False
             else:
