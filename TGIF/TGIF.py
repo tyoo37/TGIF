@@ -925,7 +925,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         positions = redefine_center(data, peakxy)
         results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
                                                                                                     subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
-                                                                                                    fitting_size=fitting_size, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
+                                                                                                    fitting_size=fitting_size_default, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
         popt = results.params
         xcen_init = xcen_fit_init
         ycen_init = ycen_fit_init
@@ -936,7 +936,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     inner_width=bkg_inner_width*fitted_major_init, outer_width=(bkg_inner_width+bkg_annulus_width)*fitted_major_init, 
                                     inner_height=bkg_inner_height*fitted_minor_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_minor_init)
         results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
-                                                                                subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
+                                                                                subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size_default, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
         popt = results.params
 
         xcen = xcen_fit
