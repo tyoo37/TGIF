@@ -921,7 +921,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                         bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2, maximum_size=4,
                         savedir=None,label=None, make_plot=True, show=True, 
                         fix_pos_idx=[],fitting_size_dict={}, idx=0):
-    if isinstance(peakxy, list): #when the coordinates of a single source are given
+    if isinstance(peakxy, list) and len(peakxy)==2: #when the coordinates of a single source are given
         positions = redefine_center(data, peakxy)
         results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
                                                                                                     subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
@@ -1024,6 +1024,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 fitting_size = fitting_size_dict[i]
             else:
                 fitting_size = fitting_size_default
+            print('idx, fitting_size', i, fitting_size)
             if i in fix_pos_idx:
                 do_subpixel_adjust = False
             else:
