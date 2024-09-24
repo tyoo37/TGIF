@@ -393,6 +393,7 @@ def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor
     
 
 def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=0*u.deg, fitting_size=1, background=None, plot=False, report_fit=True,
+                        subpixel_adjust_limit=5,
                         do_subpixel_adjust=True, iterstep=0.01, adjust_th=0.1, maxnumiter=10, numpoints=1999, maximum_size=4, flux_unit='Jy/beam'):
     """
     fit the gaussian model for a single source
@@ -491,6 +492,12 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
         xcen_subpixel_val = positions[0] - cutout.xmin_original
         ycen_subpixel_val = positions[1] - cutout.ymin_original
         adjusted_peakval_min = cutout_data[int(ycen_subpixel_val), int(xcen_subpixel_val)]
+
+    if do_subpixel_adjust and np.sqrt(vec[0]**2+vec[1]**2)>subpixel_adjust_limit:
+        xcen_subpixel_val = positions[0] - cutout.xmin_original
+        ycen_subpixel_val = positions[1] - cutout.ymin_original
+        adjusted_peakval_min = cutout_data[int(ycen_subpixel_val), int(xcen_subpixel_val)]    
+        print('subpixel adjustment takes another peak... back to the original peak')    
     y,x = np.mgrid[:cutout_data.shape[0],:cutout_data.shape[1]]
 
     #approx_peak = np.nanmax(cutout_data)
@@ -920,12 +927,13 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                         flux_unit='Jy/beam', do_subpixel_adjust=True,
                         bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2, maximum_size=4,
                         savedir=None,label=None, make_plot=True, show=True, 
-                        fix_pos_idx=[],fitting_size_dict={}, idx=0):
+                        fix_pos_idx=[],fitting_size_dict={}, idx=0, subpixel_adjust_limit=4):
     if isinstance(peakxy, list) and len(peakxy)==2: #when the coordinates of a single source are given
         positions = redefine_center(data, peakxy)
         results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
                                                                                                     subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
-                                                                                                    fitting_size=fitting_size_default, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
+                                                                                                    fitting_size=fitting_size_default, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust,
+                                                                                                    subpixel_adjust_limit=subpixel_adjust_limit)
         popt = results.params
         xcen_init = xcen_fit_init
         ycen_init = ycen_fit_init
@@ -936,7 +944,8 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     inner_width=bkg_inner_width*fitted_major_init, outer_width=(bkg_inner_width+bkg_annulus_width)*fitted_major_init, 
                                     inner_height=bkg_inner_height*fitted_minor_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_minor_init)
         results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
-                                                                                subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size_default, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
+                                                                                subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size_default, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust,
+                                                                                subpixel_adjust_limit=subpixel_adjust_limit)
         popt = results.params
 
         xcen = xcen_fit
