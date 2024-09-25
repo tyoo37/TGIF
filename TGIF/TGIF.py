@@ -906,7 +906,7 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, 
     tab.pprint_all()
 
     if savedir is not None:
-        tab.write(savedir+'%s_flux.fits'%label, format='fits', overwrite=True)
+        tab.write(savedir+'%s.fits'%label, format='fits', overwrite=True)
 
     return tab
 
@@ -926,7 +926,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                         issqrt=True, vmin=None, vmax=None,
                         flux_unit='Jy/beam', do_subpixel_adjust=True,
                         bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2, maximum_size=4,
-                        saveimgdir=None, savefitsdir=None, label=None, make_plot=True, show=True, 
+                        saveimgdir=None, savefitsdir=None,  make_plot=True, show=True, label_img=None, label_fits='w51e_b6_test',
                         fix_pos_idx=[],fitting_size_dict={}, idx=0, subpixel_adjust_limit=4):
     if isinstance(peakxy, list) and len(peakxy)==2: #when the coordinates of a single source are given
         positions = redefine_center(data, peakxy)
@@ -970,7 +970,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     plot_size=10, flux_unit = flux_unit,
                                     bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
                                     bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
-                                    savedir=saveimgdir,label=label, show=show)
+                                    savedir=saveimgdir,label=label_img, show=show)
         if fitted_major_err is not None:
             flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
         else:
@@ -1156,7 +1156,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
 
         tab = save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, 
-                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, peak_column, savedir=savefitsdir, label=label)
+                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, peak_column, savedir=savefitsdir, label=label_fits)
                       
         return tab
 
