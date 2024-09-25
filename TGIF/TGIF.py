@@ -906,7 +906,7 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, 
     tab.pprint_all()
 
     if savedir is not None:
-        tab.write(savedir+'%s.fits'%label, format='fits', overwrite=True)
+        tab.write(savedir+'%s_flux.fits'%label, format='fits', overwrite=True)
 
     return tab
 
