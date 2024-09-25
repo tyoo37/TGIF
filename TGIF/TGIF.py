@@ -1102,7 +1102,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     plot_size=10, flux_unit = flux_unit,
                                     bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
                                     bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
-                                    savedir=saveimgdir,label=label, show=show)
+                                    savedir=saveimgdir,label=label_img, show=show)
             
             if fitted_major_err is not None:
                 flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
