@@ -875,10 +875,16 @@ def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, p
         flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale.to(u.deg))**2 * u.mJy # mJy/beam -> mJy/pix**2
     
     flux = 2*np.pi*flux_in_pix*sigma_x*sigma_y
-    fluxerr = flux * ((np.array(sigma_x_err)/np.array(sigma_x))**2 + (np.array(sigma_y_err)/np.array(sigma_y))**2)
+    if sigma_x_err is not None:
+        fluxerr = flux * ((np.array(sigma_x_err)/np.array(sigma_x))**2 + (np.array(sigma_y_err)/np.array(sigma_y))**2)
+        return flux.to(u.Jy), fluxerr.to(u.Jy) 
+
+    else:
+        fluxerr = np.nan
+        return flux.to(u.Jy), fluxerr
+
     #fluxerr = flux * np.sqrt((norm_err/norm)**2 + (sigma_x_err/sigma_x)**2 + (sigma_y_err/sigma_y)**2)
     
-    return flux.to(u.Jy), fluxerr.to(u.Jy) 
 
 
        
@@ -1104,10 +1110,9 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
                                     savedir=saveimgdir,label=label_img, show=show)
             
-            if fitted_major_err is not None:
-                flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
-            else:
-                flux, flux_err = np.nan, np.nan
+            
+            flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
+    
             
             major_fwhm = np.array(fitted_major.value) * 2*np.sqrt(2*np.log(2))
             minor_fwhm = np.array(fitted_minor.value) * 2*np.sqrt(2*np.log(2))
