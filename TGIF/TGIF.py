@@ -1142,13 +1142,12 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 flux_err_arr.append(flux_err.value)
 
             else:
-                flux_arr.append(flux)
+                flux_arr.append(flux.value)
                 flux_err_arr.append(flux_err)
 
             #print('i, xcen, ycen, pa, fitted_major, fitted_minor, peak,  pa_err, fitted_major_err, fitted_minor_err,',
             #    i, xcen, ycen, pa, fitted_major.value, fitted_minor.value, peak,  pa_err, fitted_major_err, fitted_minor_err )
-        flux_arr = np.array(flux_arr)
-        flux_err_arr = np.array(flux_err_arr)
+       
         fitted_major_column = MaskedColumn(data=fitted_major_arr, name='fitted_major', mask=np.isnan(fitted_major_arr), unit=u.arcsec, fill_value=-999)
         fitted_minor_column = MaskedColumn(data=fitted_minor_arr, name='fitted_minor', mask=np.isnan(fitted_minor_arr), unit=u.arcsec, fill_value=-999)
         fitted_major_err_column = MaskedColumn(data=fitted_major_err_arr, name='fitted_major_err', mask=np.isnan(fitted_major_err_arr), unit=u.arcsec, fill_value=-999)  
