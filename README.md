@@ -80,44 +80,78 @@ tgif.plot_and_save_fitting_results(image_b3, peakxy_b3, my_beamNB3, wcsNB3, scal
 
 # arguments for the main function
 data: 2d array of the image
+
 peakxy: list of the pixel coordinates of the sources
+
 beam: Beam object of the image beam
+
 wcsNB: WCS object of the image
+
 pixel_scale: pixel scale of the image
+
 fitting_size_default: default size of the fitting box
+
 issqrt: if True, the image is shown in sqrt scale (default: True)
+
 vmin: minimum value for the color scale of the image (default: None)
+
 vmax: maximum value for the color scale of the image (default: None)
+
 flux_unit: unit of the flux (default: 'Jy/beam')
+
 do_subpixel_adjust: if True, the subpixel adjustment is done (default: True)
+
 bkg_inner_width: inner width of the background annulus in the unit of pixel (default: 4)
+
 bkg_annulus_width: outer width of the background annulus in the unit of pixel (default: 2)
+
 bkg_inner_height: inner height of the background annulus in the unit of pixel (default: 4)
+
 bkg_annulus_height: outer height of the background annulus in the unit of pixel (default: 2)
+
 maximum_size: maximum size of the fitting cutout in the unit of pixel (default: 4)
+
 saveimgdir: directory to save the fitting result image (default: None)
+
 savefitsdir: directory to save the fitting result table in the fits format (default: None)
+
 make_plot: if True, the fitting results are plotted (default: True)
+
 show: if True, the fitting results are shown (default: True)
+
 label_img: label of the image file name. The directory of the image will be saveimgdir+label_img+'_%06d.png'%idx. (default: None)
+
 label_fits: label of the fits file. The directory of the fits file will be savefitsdir+'%s.fits'%label_fits. (default: 'w51e_b6_test')
+
 fix_pos_idx: list of the index of the source to fix the position. Useful when no significant peak is found at the original position of the source. (default: [])
+
 fitting_size_dict: dictionary of the fitting size for each source. The key is the index of the source and the value is the size of the fitting box. (default: {})
+
 idx: index of the source (default: 0)
+
 subpixel_adjust_limit: the maximum limit of the subpixel adjustment in units of pixel.  (default: 4)
 
 # outputs
 ```plot_and_save_fitting_results``` generates the image (when ```plot`` is ```True```) and the table containing the fitting results.
 
 The tables contains following information:
+
 ```flux```: flux of sources in the same unit as the unit of flux in the image.
+
 ```flux_err``` : flux error based on LMFIT fitting results
+
 ```pa```: position angle of fitted 2D gaussian model
+
 ```pa_err```: error of ```pa``` based on LMFIT fitting results
+
 ```fitted_major```: FWHM of Gaussian width along the major axis in the same unit of the pixel scale
+
 ```fitted_minor```: FWHM of Gaussian width along the minor axis in the same unit of the pixel scale
+
 ```deconvolved_major```: FWHM of Gaussian width along the major axis deconvolved to the image beam. Usually used in estimating the physical size. same unit of the pixel scale.
+
 ```deconvolved_minor```: FWHM of Gaussian width along the minor axis deconvolved to the image beam. 
+
 ```peal_flux``` : the peak flux of the 2D Gaussian model
 
 
