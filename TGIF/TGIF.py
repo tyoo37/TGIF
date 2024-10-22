@@ -1178,7 +1178,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     savedir=saveimgdir,label=label_img, show=show)
             
             
-            flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
+            flux, flux_err = get_integrated_flux(peak, fitted_major, fitted_minor, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
     
             
             major_fwhm = np.array(fitted_major.value) 
