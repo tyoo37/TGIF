@@ -1168,7 +1168,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 fitted_minor_err_arr.append(np.nan)
                 
             if make_plot:
-                plot_for_individual(data, xcen, ycen, peakxy[i,0], peakxy[i,1], pa, fitted_major, fitted_minor, peak, pixel_scale, bkg, fitted_major_err, fitted_minor_err,  
+                plot_for_individual(data, xcen, ycen, peakxy[i,0], peakxy[i,1], pa, fitted_major/sig_to_fwhm, fitted_minor/sig_to_fwhm, peak, pixel_scale, bkg, fitted_major_err/sig_to_fwhm, fitted_minor_err/sig_to_fwhm,  
                                     beam, wcsNB,
                                     idx=i, issqrt=issqrt,
                                     vmin=vmin, vmax=vmax,  
@@ -1181,8 +1181,8 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             flux, flux_err = get_integrated_flux(peak, fitted_major, fitted_minor, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
     
             
-            major_fwhm = np.array(fitted_major.value) 
-            minor_fwhm = np.array(fitted_minor.value)
+            major_fwhm = np.array(fitted_major) 
+            minor_fwhm = np.array(fitted_minor)
 
             fwhm_major_sky = major_fwhm * pixel_scale 
             fwhm_minor_sky = minor_fwhm * pixel_scale 
