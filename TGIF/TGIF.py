@@ -893,6 +893,31 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, 
                          peak_arr,
                          savedir='./', label='w51e',):
     
+    """
+    saves the fitting results in the fits format
+
+    args
+    ----
+    fitted_major: fitted major axis FWHM. The unit is equal to the pixel_scale unit.
+    fitted_minor: fitted minor axis FWHM. The unit is equal to the pixel_scale unit.
+    major_err: error of the fitted major axis FWHM.
+    minor_err: error of the fitted minor axis FWHM. 
+    pa: fitted position angle in degree.
+    pa_err: error of the fitted position angle in degree.
+    flux: flux of the source from the 2D gaussian fitting. The unit is the same as the flux unit of the image.
+    flux_err: error of the flux of the source from the 2D gaussian fitting.
+    deconvolved_major_arr: deconvolved major axis FWHM. The unit is equal to the pixel_scale unit.
+    deconvolved_minor_arr: deconvolved minor axis FWHM. The unit is equal to the pixel_scale unit.
+    peak_arr: peak flux of the source from the 2D gaussian fitting. 
+    savedir: directory to save the fitting result table in the fits format (default: './')
+    label: label of the fits file. The directory of the fits file will be savedir+'%s.fits'%label. (default: 'w51e')
+
+    return
+    ------
+    tab: astropy table of the fitting results
+    
+    """
+    
     from astropy.table import QTable
 
     
@@ -934,6 +959,48 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                         bkg_inner_width=4, bkg_annulus_width=2, bkg_inner_height=4, bkg_annulus_height=2, maximum_size=4,
                         saveimgdir=None, savefitsdir=None,  make_plot=True, show=True, label_img=None, label_fits='w51e_b6_test',
                         fix_pos_idx=[],fitting_size_dict={}, idx=0, subpixel_adjust_limit=4):
+    """
+
+    main function to plot and save the fitting results
+
+
+    args
+    ----
+    data: 2d array of the image
+    peakxy: list of the pixel coordinates of the sources
+    beam: Beam object of the image beam
+    wcsNB: WCS object of the image
+    pixel_scale: pixel scale of the image
+    fitting_size_default: default size of the fitting box
+    issqrt: if True, the image is shown in sqrt scale (default: True)
+    vmin: minimum value for the color scale of the image (default: None)
+    vmax: maximum value for the color scale of the image (default: None)
+    flux_unit: unit of the flux (default: 'Jy/beam')
+    do_subpixel_adjust: if True, the subpixel adjustment is done (default: True)
+    bkg_inner_width: inner width of the background annulus in the unit of pixel (default: 4)
+    bkg_annulus_width: outer width of the background annulus in the unit of pixel (default: 2)
+    bkg_inner_height: inner height of the background annulus in the unit of pixel (default: 4)
+    bkg_annulus_height: outer height of the background annulus in the unit of pixel (default: 2)
+    maximum_size: maximum size of the fitting cutout in the unit of pixel (default: 4)
+    saveimgdir: directory to save the fitting result image (default: None)
+    savefitsdir: directory to save the fitting result table in the fits format (default: None)
+    make_plot: if True, the fitting results are plotted (default: True)
+    show: if True, the fitting results are shown (default: True)
+    label_img: label of the image file name. The directory of the image will be saveimgdir+label_img+'_%06d.png'%idx. (default: None)
+    label_fits: label of the fits file. The directory of the fits file will be savefitsdir+'%s.fits'%label_fits. (default: 'w51e_b6_test')
+    fix_pos_idx: list of the index of the source to fix the position. Useful when no significant peak is found at the original position of the source. (default: [])
+    fitting_size_dict: dictionary of the fitting size for each source. The key is the index of the source and the value is the size of the fitting box. (default: {})
+    idx: index of the source (default: 0)
+    subpixel_adjust_limit: the maximum limit of the subpixel adjustment in units of pixel.  (default: 4)
+
+    return
+    ------
+    tab: astropy table of the fitting results
+
+
+    """
+    sig_to_fwhm = 2*np.sqrt(2*np.log(2))
+
     if isinstance(peakxy, list) and len(peakxy)==2: #when the coordinates of a single source are given
         positions = redefine_center(data, peakxy)
         results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
@@ -1067,8 +1134,8 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             xcen = xcen_fit
             ycen = ycen_fit
             pa = popt['theta'] * 180 / np.pi
-            fitted_major = popt['sigma_x']
-            fitted_minor = popt['sigma_y']
+            fitted_major = popt['sigma_x'] * sig_to_fwhm #Gausian width -> FWHM
+            fitted_minor = popt['sigma_y'] * sig_to_fwhm
             peak = peak_fit
             if peak is not None:
                 peak_arr.append(peak)
@@ -1080,8 +1147,8 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 pa_err = results.params['theta'].stderr * 180 / np.pi
             else:
                 pa_err = np.nan
-            fitted_major_err = results.params['sigma_x'].stderr
-            fitted_minor_err = results.params['sigma_y'].stderr
+            fitted_major_err = results.params['sigma_x'].stderr * sig_to_fwhm
+            fitted_minor_err = results.params['sigma_y'].stderr * sig_to_fwhm
 
             if fitted_major.value is not None:
                 fitted_major_arr.append(fitted_major.value*pixel_scale.value)
@@ -1114,8 +1181,8 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
     
             
-            major_fwhm = np.array(fitted_major.value) * 2*np.sqrt(2*np.log(2))
-            minor_fwhm = np.array(fitted_minor.value) * 2*np.sqrt(2*np.log(2))
+            major_fwhm = np.array(fitted_major.value) 
+            minor_fwhm = np.array(fitted_minor.value)
 
             fwhm_major_sky = major_fwhm * pixel_scale 
             fwhm_minor_sky = minor_fwhm * pixel_scale 
@@ -1147,17 +1214,21 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
 
             #print('i, xcen, ycen, pa, fitted_major, fitted_minor, peak,  pa_err, fitted_major_err, fitted_minor_err,',
             #    i, xcen, ycen, pa, fitted_major.value, fitted_minor.value, peak,  pa_err, fitted_major_err, fitted_minor_err )
-       
-        fitted_major_column = MaskedColumn(data=fitted_major_arr, name='fitted_major', mask=np.isnan(fitted_major_arr), unit=u.arcsec, fill_value=-999)
-        fitted_minor_column = MaskedColumn(data=fitted_minor_arr, name='fitted_minor', mask=np.isnan(fitted_minor_arr), unit=u.arcsec, fill_value=-999)
-        fitted_major_err_column = MaskedColumn(data=fitted_major_err_arr, name='fitted_major_err', mask=np.isnan(fitted_major_err_arr), unit=u.arcsec, fill_value=-999)  
-        fitted_minor_err_column = MaskedColumn(data=fitted_minor_err_arr, name='fitted_minor_err', mask=np.isnan(fitted_minor_err_arr), unit=u.arcsec, fill_value=-999)  
+        if pixel_scale.unit == u.arcsec:
+            fwhm_unit = u.arcsec
+        elif pixel_scale.unit == u.deg:
+            fwhm_unit = u.deg
+
+        fitted_major_column = MaskedColumn(data=fitted_major_arr, name='fitted_major', mask=np.isnan(fitted_major_arr), unit=fwhm_unit, fill_value=-999)
+        fitted_minor_column = MaskedColumn(data=fitted_minor_arr, name='fitted_minor', mask=np.isnan(fitted_minor_arr), unit=fwhm_unit, fill_value=-999)
+        fitted_major_err_column = MaskedColumn(data=fitted_major_err_arr, name='fitted_major_err', mask=np.isnan(fitted_major_err_arr), unit=fwhm_unit, fill_value=-999)  
+        fitted_minor_err_column = MaskedColumn(data=fitted_minor_err_arr, name='fitted_minor_err', mask=np.isnan(fitted_minor_err_arr), unit=fwhm_unit, fill_value=-999)  
         pa_column = MaskedColumn(data=pa_arr, name='pa', mask=np.isnan(pa_arr), unit=u.deg, fill_value=-999) 
         pa_err_column = MaskedColumn(data=pa_err_arr, name='pa_err', mask=pd.isnull(pa_err_arr), unit=u.deg, fill_value=-999) 
         flux_column = MaskedColumn(data=flux_arr, name='flux', mask=np.isnan(flux_arr), unit=u.Jy, fill_value=-999)
         flux_err_column = MaskedColumn(data=flux_err_arr, name='flux_err', mask=np.isnan(flux_err_arr), unit=u.Jy, fill_value=-999)
-        deconvolved_major_column = MaskedColumn(data=deconvolved_major_arr, name='deconvolved_major', mask=np.isnan(deconvolved_major_arr), unit=u.arcsec, fill_value=-999)
-        deconvolved_minor_column = MaskedColumn(data=deconvolved_minor_arr, name='deconvolved_minor', mask=np.isnan(deconvolved_minor_arr), unit=u.arcsec, fill_value=-999)
+        deconvolved_major_column = MaskedColumn(data=deconvolved_major_arr, name='deconvolved_major', mask=np.isnan(deconvolved_major_arr), unit=fwhm_unit, fill_value=-999)
+        deconvolved_minor_column = MaskedColumn(data=deconvolved_minor_arr, name='deconvolved_minor', mask=np.isnan(deconvolved_minor_arr), unit=fwhm_unit, fill_value=-999)
         peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
 
         tab = save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, 
