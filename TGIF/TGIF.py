@@ -915,7 +915,7 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, 
     return
     ------
     tab: astropy table of the fitting results
-    
+
     """
     
     from astropy.table import QTable
@@ -1151,11 +1151,11 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             fitted_minor_err = results.params['sigma_y'].stderr * sig_to_fwhm
 
             if fitted_major.value is not None:
-                fitted_major_arr.append(fitted_major.value*pixel_scale.value)
+                fitted_major_arr.append(fitted_major*pixel_scale.value)
             else:
                 fitted_major_arr.append(np.nan)
             if fitted_minor.value is not None:
-                fitted_minor_arr.append(fitted_minor.value*pixel_scale.value)
+                fitted_minor_arr.append(fitted_minor*pixel_scale.value)
             else:
                 fitted_minor_arr.append(np.nan)
             if fitted_major_err is not None:
