@@ -1147,9 +1147,12 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 pa_err = results.params['theta'].stderr * 180 / np.pi
             else:
                 pa_err = np.nan
-            fitted_major_err = results.params['sigma_x'].stderr * sig_to_fwhm
-            fitted_minor_err = results.params['sigma_y'].stderr * sig_to_fwhm
-
+            if results.params['sigma_x'].stderr is not None:
+                fitted_major_err = results.params['sigma_x'].stderr * sig_to_fwhm
+                fitted_minor_err = results.params['sigma_y'].stderr * sig_to_fwhm
+            else:
+                fitted_major_err = np.nan
+                fitted_minor_err = np.nan
             if fitted_major is not None:
                 fitted_major_arr.append(fitted_major*pixel_scale.value)
             else:
