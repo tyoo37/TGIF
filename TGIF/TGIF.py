@@ -485,8 +485,12 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
             niter+=1
 
         #print('total offset in subpixel_offset_adjust, ', vec)
-        xcen_subpixel_val = xcen_subpixel.value
-        ycen_subpixel_val = ycen_subpixel.value
+        if isinstance(xcen_subpixel, u.Quantity):
+            xcen_subpixel_val = xcen_subpixel.value
+            ycen_subpixel_val = ycen_subpixel.value
+        else:
+            xcen_subpixel_val = xcen_subpixel
+            ycen_subpixel_val = ycen_subpixel
 
     else:
         xcen_subpixel_val = positions[0] - cutout.xmin_original
