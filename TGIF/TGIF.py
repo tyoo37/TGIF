@@ -1212,17 +1212,17 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
 
             pa_arr.append(pa)
             pa_err_arr.append(pa_err)
-            if isinstance(flux_err, u.Quantity):
-                flux_err = flux_err.value
-
-            if np.isfinite(flux_err):
+            if isinstance(flux, u.Quantity):
                 flux_arr.append(flux.value)
-                flux_err_arr.append(flux_err.value)
-
             else:
-                flux_arr.append(flux.value)
+                flux_arr.append(flux)
+                
+            if isinstance(flux_err, u.Quantity):
+                flux_err_arr.append(flux_err.value)
+            else:
                 flux_err_arr.append(flux_err)
 
+          
 
             #print('i, xcen, ycen, pa, fitted_major, fitted_minor, peak,  pa_err, fitted_major_err, fitted_minor_err,',
             #    i, xcen, ycen, pa, fitted_major.value, fitted_minor.value, peak,  pa_err, fitted_major_err, fitted_minor_err )
