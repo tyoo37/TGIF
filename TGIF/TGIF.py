@@ -1210,7 +1210,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
 
             pa_arr.append(pa)
             pa_err_arr.append(pa_err)
-            if isinstance(flux_err, Quantity):
+            if isinstance(flux_err, u.Quantity):
                 flux_err = flux_err.value
 
             if np.isfinite(flux_err):
