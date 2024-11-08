@@ -1212,15 +1212,17 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
 
             pa_arr.append(pa)
             pa_err_arr.append(pa_err)
-
-            if isinstance(flux, u.Quantity):
-                flux_arr.append(flux.value)
-            else:
-                flux_arr.append(flux)
             if isinstance(flux_err, u.Quantity):
+                flux_err = flux_err.value
+
+            if np.isfinite(flux_err):
+                flux_arr.append(flux.value)
                 flux_err_arr.append(flux_err.value)
+
             else:
+                flux_arr.append(flux.value)
                 flux_err_arr.append(flux_err)
+
 
             #print('i, xcen, ycen, pa, fitted_major, fitted_minor, peak,  pa_err, fitted_major_err, fitted_minor_err,',
             #    i, xcen, ycen, pa, fitted_major.value, fitted_minor.value, peak,  pa_err, fitted_major_err, fitted_minor_err )
@@ -1228,6 +1230,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             fwhm_unit = u.arcsec
         elif pixel_scale.unit == u.deg:
             fwhm_unit = u.deg
+
         fitted_major_column = MaskedColumn(data=fitted_major_arr, name='fitted_major', mask=np.isnan(fitted_major_arr), unit=fwhm_unit, fill_value=-999)
         fitted_minor_column = MaskedColumn(data=fitted_minor_arr, name='fitted_minor', mask=np.isnan(fitted_minor_arr), unit=fwhm_unit, fill_value=-999)
         fitted_major_err_column = MaskedColumn(data=fitted_major_err_arr, name='fitted_major_err', mask=np.isnan(fitted_major_err_arr), unit=fwhm_unit, fill_value=-999)  
