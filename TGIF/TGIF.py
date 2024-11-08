@@ -1225,7 +1225,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             fwhm_unit = u.arcsec
         elif pixel_scale.unit == u.deg:
             fwhm_unit = u.deg
-
+        print(flux_err_arr)
         fitted_major_column = MaskedColumn(data=fitted_major_arr, name='fitted_major', mask=np.isnan(fitted_major_arr), unit=fwhm_unit, fill_value=-999)
         fitted_minor_column = MaskedColumn(data=fitted_minor_arr, name='fitted_minor', mask=np.isnan(fitted_minor_arr), unit=fwhm_unit, fill_value=-999)
         fitted_major_err_column = MaskedColumn(data=fitted_major_err_arr, name='fitted_major_err', mask=np.isnan(fitted_major_err_arr), unit=fwhm_unit, fill_value=-999)  
