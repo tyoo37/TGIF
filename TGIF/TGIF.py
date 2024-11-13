@@ -877,6 +877,8 @@ def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, p
         flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale)**2 * u.Jy
     elif flux_unit == 'mJy/beam':
         flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale)**2 * u.mJy # mJy/beam -> mJy/pix**2
+    print('norm, beam.major, beam.minor,pixel_scale ', norm, beam.major, beam.minor, pixel_scale)
+    print('flux in pixel, sigma_x, sigma_y', flux_in_pix, sigma_x, sigma_y)
     flux = 2*np.pi*flux_in_pix*sigma_x*sigma_y
     if sigma_x_err is not None:
         fluxerr = flux * ((np.array(sigma_x_err)/np.array(sigma_x))**2 + (np.array(sigma_y_err)/np.array(sigma_y))**2)
@@ -1187,7 +1189,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             
             print('peak',peak,'fitted_major',fitted_major, 'fitted_minor',fitted_minor,'beam',beam, 'pixel_scale',pixel_scale, 'flux_unit',flux_unit)
             flux, flux_err = get_integrated_flux(peak, fitted_major, fitted_minor, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
-    
+            print('flux', flux, 'flux_err', flux_err)
             
             major_fwhm = np.array(fitted_major) 
             minor_fwhm = np.array(fitted_minor)
