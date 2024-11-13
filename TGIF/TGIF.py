@@ -874,10 +874,9 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
 
 def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, pixel_scale, flux_unit='Jy/beam'):
     if flux_unit == 'Jy/beam':
-        flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale.to(u.deg))**2 * u.Jy
+        flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale)**2 * u.Jy
     elif flux_unit == 'mJy/beam':
-        flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale.to(u.deg))**2 * u.mJy # mJy/beam -> mJy/pix**2
-    
+        flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale)**2 * u.mJy # mJy/beam -> mJy/pix**2
     flux = 2*np.pi*flux_in_pix*sigma_x*sigma_y
     if sigma_x_err is not None:
         fluxerr = flux * ((np.array(sigma_x_err)/np.array(sigma_x))**2 + (np.array(sigma_y_err)/np.array(sigma_y))**2)
@@ -1186,7 +1185,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
                                     savedir=saveimgdir,label=label_img, show=show)
             
-            
+            print('peak',peak,'fitted_major',fitted_major, 'fitted_minor',fitted_minor,'beam',beam, 'pixel_scale',pixel_scale, 'flux_unit',flux_unit)
             flux, flux_err = get_integrated_flux(peak, fitted_major, fitted_minor, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
     
             
@@ -1216,7 +1215,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 flux_arr.append(flux.value)
             else:
                 flux_arr.append(flux)
-                
+
             if isinstance(flux_err, u.Quantity):
                 flux_err_arr.append(flux_err.value)
             else:
