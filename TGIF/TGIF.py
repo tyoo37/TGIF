@@ -877,8 +877,7 @@ def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, p
         flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale)**2 * u.Jy
     elif flux_unit == 'mJy/beam':
         flux_in_pix = norm / (np.pi * beam.major/2 * beam.minor/2) * (pixel_scale)**2 * u.mJy # mJy/beam -> mJy/pix**2
-    print('norm, beam.major, beam.minor,pixel_scale ', norm, beam.major, beam.minor, pixel_scale)
-    print('flux in pixel, sigma_x, sigma_y', flux_in_pix, sigma_x, sigma_y)
+    
     flux = 2*np.pi*flux_in_pix*sigma_x*sigma_y
     if sigma_x_err is not None:
         fluxerr = flux * ((np.array(sigma_x_err)/np.array(sigma_x))**2 + (np.array(sigma_y_err)/np.array(sigma_y))**2)
