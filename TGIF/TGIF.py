@@ -212,7 +212,7 @@ def subpixel_adjustment(profile1d, distarr, inclination, vec_from_cen, numpix_ad
     return adjusted_offset_x, adjusted_offset_y, adjusted_offset, adjusted_peakval
 
 def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale, 
-                  inner_width=1, outer_width=2, inner_height=1, outer_height=2, issky=False, filter_bright_pixels=False, plot=False):
+                  inner_width=1, outer_width=2, inner_height=1, outer_height=2, issky=False, filter_bright_pixels=False, plot=False, n_expected_neighbor=10):
     """
     Get the local background for a given source
     
@@ -275,16 +275,23 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
 
     # masking the position where other neighboring sources lie
     if peakxy_all is not None:
+
+        dist = np.sqrt((peakxy_all[:,0]-xcen)**2+(peakxy_all[:,1]-ycen)**2)
+        peakxy_sorted = peakxy_all[np.argsort(dist)]
+        peakxy_sorted_selected = peakxy_sorted[:n_expected_neighbor]
+    
+
+        
         if issky:
-            cen_pix = wcsNB.wcs_world2pix(peakxy_all,0)
-            cen_world = peakxy_all
+            cen_pix = wcsNB.wcs_world2pix(peakxy_sorted_selected,0)
+            cen_world = peakxy_sorted_selected
         else:
-            cen_pix = peakxy_all
-            cen_world = wcsNB.wcs_pix2world(peakxy_all,0)
+            cen_pix = peakxy_sorted_selected
+            cen_world = wcsNB.wcs_pix2world(peakxy_sorted_selected,0)
     
   
-        num_source = len(cen_world[:,0])
-        positions_all = coordinates.SkyCoord([[cen_world[i,0],cen_world[i,1]] for i in range(num_source)], frame=wcs.utils.wcs_to_celestial_frame(wcsNB).name,unit=(u.deg,u.deg))
+        
+        positions_all = coordinates.SkyCoord([[cen_world[i,0],cen_world[i,1]] for i in range(n_expected_neighbor)], frame=wcs.utils.wcs_to_celestial_frame(wcsNB).name,unit=(u.deg,u.deg))
 
    
         test_region = EllipseAnnulusPixelRegion(center=PixCoord(x=xcen, y=ycen),
@@ -294,13 +301,13 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
                                         inner_height=inner_height-beam_minor.value/pixel_scale.value,
                                         angle=angle*u.deg)
         
-        nearby_matches =[PixCoord(peakxy_all[i,0],peakxy_all[i,1]) in test_region for i in range(num_source)]
+        nearby_matches =[PixCoord(peakxy_sorted_selected[i,0],peakxy_sorted_selected[i,1]) in test_region for i in range(n_expected_neighbor)]
  
         if any(nearby_matches):
             
             inds = np.where(nearby_matches)[0].tolist()
             if len(inds)>1:
-                dist = np.sqrt((peakxy_all[inds,0]-xcen)**2+(peakxy_all[inds,1]-ycen)**2)
+                dist = np.sqrt((peakxy_sorted_selected[inds,0]-xcen)**2+(peakxy_sorted_selected[inds,1]-ycen)**2)
                 myself = np.argmin(dist)
                 #print(inds, len(inds),myself)
                 inds.remove(inds[myself])
