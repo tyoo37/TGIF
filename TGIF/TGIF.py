@@ -356,7 +356,7 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
 
 
 
-def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor=10):
+def residual(params, x, y, image, x_center, y_center, norm, rms, rad=5, lambda_factor=10):
     """
     this residual function is the function that is required to be minimized
     
@@ -384,6 +384,7 @@ def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor
     
     """
     model = gaussian2d(x, y, x_center, y_center, norm, **params)
+    
     center = PixCoord(x_center, y_center)
     yy, xx = np.mgrid[:model.shape[0], :model.shape[1]]
     dist = np.sqrt((xx-x_center)**2+(yy-y_center)**2)
@@ -392,14 +393,15 @@ def residual(params, x, y, image, x_center, y_center, norm, rad=5, lambda_factor
     offset = image-model
     #offset[offset>0] = offset[offset>0]/lambda_factor
     #masked_offset[masked_offset<0] = masked_offset[masked_offset<0] * 100000
-    offset[offset<0] = offset[offset<0]*np.exp(lambda_factor*np.abs(offset[offset<0]))
-    masked_offset = mask.multiply(offset)
+    rms_arr = np.ones_like(offset)*rms
+    rms_arr[offset<0] = rms_arr[offset<0]*np.exp(lambda_factor*np.abs(offset[offset<0]))
+    #masked_offset = mask.multiply(offset)
 
     #print('size',len(masked_offset[np.isfinite(masked_offset)]))
-    return masked_offset[np.isfinite(masked_offset)]
+    return np.sqrt(offset**2/rms**2)
     
 
-def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adjust_angle=0*u.deg, fitting_size=1, background=None, plot=False, report_fit=True,
+def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, rms, subpixel_adjust_angle=0*u.deg, fitting_size=1, background=None, plot=False, report_fit=True,
                         subpixel_adjust_limit=5,
                         do_subpixel_adjust=True, iterstep=0.01, adjust_th=0.1, maxnumiter=10, numpoints=1999, maximum_size=4, flux_unit='Jy/beam'):
     """
@@ -542,7 +544,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, subpixel_adju
     params.add('sigma_x', value=p0[3], min=bounds[3][0], max=bounds[3][1], expr='sigma_diff + sigma_y')
     params.add('shift', value=p0[6], min=bounds[6][0], max=bounds[6][1])
     results = lmfit.minimize(residual, params, 
-                             args=(x, y, cutout_data, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min), 
+                             args=(x, y, cutout_data, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min, rms), 
                              method='leastsq')
     if report_fit:
         lmfit.report_fit(results)
@@ -878,6 +880,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     if show:
         plt.show()
     plt.close()
+    del cutout, cutout_data, cutout_bkgsub, model
 
 def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, pixel_scale, flux_unit='Jy/beam'):
     if flux_unit == 'Jy/beam':
