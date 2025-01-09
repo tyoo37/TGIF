@@ -393,12 +393,15 @@ def residual(params, x, y, image, x_center, y_center, norm, rms, rad=5, lambda_f
     offset = image-model
     #offset[offset>0] = offset[offset>0]/lambda_factor
     #masked_offset[masked_offset<0] = masked_offset[masked_offset<0] * 100000
-    rms_arr = np.ones_like(offset)*rms
-    rms_arr[offset<0] = rms_arr[offset<0]*np.exp(lambda_factor*np.abs(offset[offset<0]))
-    #masked_offset = mask.multiply(offset)
+    if rms is None:
+        return offset
+    else:
+        rms_arr = np.ones_like(offset)*rms
+        rms_arr[offset<0] = rms_arr[offset<0]*np.exp(lambda_factor*np.abs(offset[offset<0]))
+        #masked_offset = mask.multiply(offset)
 
-    #print('size',len(masked_offset[np.isfinite(masked_offset)]))
-    return np.sqrt(offset**2/rms**2)
+        #print('size',len(masked_offset[np.isfinite(masked_offset)]))
+        return np.sqrt(offset**2/rms**2)
     
 
 def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, rms, subpixel_adjust_angle=0*u.deg, fitting_size=1, background=None, plot=False, report_fit=True,
@@ -1129,7 +1132,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 do_subpixel_adjust = True    
             positions_original = (peakxy[i,0], peakxy[i,1])
             positions = redefine_center(data, positions_original)
-            results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
+            results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, None,
                                                                                                     subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
                                                                                                     fitting_size=fitting_size, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
             popt = results.params
@@ -1143,7 +1146,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                         inner_height=bkg_inner_height*fitted_major_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_major_init)
             
         
-            results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
+            results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, bkg_mad,
                                                                                 subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
             popt = results.params
 
@@ -1197,7 +1200,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     savedir=saveimgdir,label=label_img, show=show)
             
             flux, flux_err = get_integrated_flux(peak, fitted_major / sig_to_fwhm, fitted_minor / sig_to_fwhm, fitted_major_err /sig_to_fwhm, fitted_minor_err /sig_to_fwhm, beam, pixel_scale, flux_unit=flux_unit)
-            
+            print('flux, fluxerr', flux, flux_err)
             major_fwhm = np.array(fitted_major) 
             minor_fwhm = np.array(fitted_minor)
 
