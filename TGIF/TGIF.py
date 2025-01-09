@@ -893,7 +893,7 @@ def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, p
     
     flux = 2*np.pi*flux_in_pix*sigma_x*sigma_y
     if sigma_x_err is not None:
-        fluxerr = flux * ((np.array(sigma_x_err)/np.array(sigma_x))**2 + (np.array(sigma_y_err)/np.array(sigma_y))**2)
+        fluxerr = flux * np.sqrt((np.array(sigma_x_err)/np.array(sigma_x))**2 + (np.array(sigma_y_err)/np.array(sigma_y))**2)
         return flux.to(u.Jy), fluxerr.to(u.Jy) 
 
     else:
