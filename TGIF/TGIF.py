@@ -356,7 +356,7 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
 
 
 
-def residual(params, x, y, image, x_center, y_center, norm, rms, rad=5, lambda_factor=10):
+def residual(params, x, y, image, x_center, y_center, norm, rms, rad=5, lambda_factor=100):
     """
     this residual function is the function that is required to be minimized
     
