@@ -401,7 +401,7 @@ def residual(params, x, y, image, x_center, y_center, norm, rms, rad=5, lambda_f
         #masked_offset = mask.multiply(offset)
 
         #print('size',len(masked_offset[np.isfinite(masked_offset)]))
-        return np.sqrt(offset**2/rms**2)
+        return np.sqrt(offset**2/rms_arr**2)
     
 
 def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, rms, subpixel_adjust_angle=0*u.deg, fitting_size=1, background=None, plot=False, report_fit=True,
