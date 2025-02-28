@@ -111,7 +111,40 @@ def slice_bbox_from_bbox(bbox1, bbox2):
     return view1,view2
 
 def subpixel_adjustment(profile1d, distarr, inclination, vec_from_cen, numpix_adjust=11,
-                        verbose=False, isstrict=False,small_value=2e-7, tolerance=5, test_plot=False,):
+                        verbose=False,small_value=2e-7, test_plot=False,):
+    """
+    Since the peak of the source is not always at the center of the pixel, we need to adjust the peak position to the center of the pixel.
+
+    args
+    -----
+    profile1d: numpy.array
+        the 1D profile of the source image
+    distarr: numpy.array
+        the distance array of the 1D profile. the distance array is the distance from the center of the source
+    inclination: Angle or astropy.Quantity
+        the position angle of the source 2D gaussian (with the units of radian)
+    vec_from_cen: tuple
+        offset vector from the center of the image to the peak of the source we found.
+    numpix_adjust: int
+        the number of pixels which are used to adjust the peak position
+    verbose: bool
+        verbose is True if you want to print the results
+    small_value: float
+        the peak of the model is slightly smaller than the peak of the source image by this small_value to 
+        avoid the situation where the small error makes the failure in the fitting in the initial stage
+    test_plot: bool
+        test_plot is True if you want to plot the fitting results
+    return
+    -------
+    adjusted_offset_x: float
+        the adjusted offset in the x direction
+    adjusted_offset_y: float
+        the adjusted offset in the y direction
+    adjusted_offset: float 
+        the adjusted offset along the major axis of the source
+    adjusted_peakval: float
+        the adjusted peak value of the source image
+    """
     isnotfound = False
 
     half_numpoints = int(len(profile1d)/2)
@@ -244,6 +277,10 @@ def get_local_bkg(data, xcen, ycen, angle, peakxy_all, wcsNB, beam, pixel_scale,
         issky is True if the input peakxy_all is in sky coordinates
     filter_bright_pixels: bool 
         filter_bright_pixels is True if you want to filter out the bright pixels in the source region
+    plot: bool
+        plot is True if you want to plot the fitting results
+    n_expected_neighbor: int
+        the number of expected neighbors
     
     return
     -------
@@ -1020,7 +1057,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
 
     if isinstance(peakxy, list) and len(peakxy)==2: #when the coordinates of a single source are given
         positions = redefine_center(data, peakxy)
-        results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
+        results, xcen_fit_init, ycen_fit_init, peak_fit_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, None, 
                                                                                                     subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
                                                                                                     fitting_size=fitting_size_default, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust,
                                                                                                     subpixel_adjust_limit=subpixel_adjust_limit)
@@ -1030,10 +1067,10 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         pa_init = popt['theta'] * 180 / np.pi
         fitted_major_init = popt['sigma_x']
         fitted_minor_init = popt['sigma_y']
-        bkg, bkg_mad = get_local_bkg(data, xcen_init, ycen_init, pa_init, None, wcsNB, beam, pixel_scale,
+        bkg, bkg_mad = get_local_bkg(data, xcen_init, ycen_init, pa_init, None, wcsNB, beam, pixel_scale, 
                                     inner_width=bkg_inner_width*fitted_major_init, outer_width=(bkg_inner_width+bkg_annulus_width)*fitted_major_init, 
                                     inner_height=bkg_inner_height*fitted_minor_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_minor_init)
-        results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
+        results, xcen_fit, ycen_fit, peak_fit  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, bkg_mad,
                                                                                 subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size_default, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust,
                                                                                 subpixel_adjust_limit=subpixel_adjust_limit)
         popt = results.params
@@ -1083,7 +1120,6 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             deconvolved_minor =0   
         if isinstance(flux_err, u.Quantity):
             flux_err = flux_err.value
-
         return flux, flux_err, pa, pa_err, fitted_major, fitted_major_err, fitted_minor, fitted_minor_err, deconvolved_major, deconvolved_minor
 
     else: #when the coordinates of multiple sources are given
