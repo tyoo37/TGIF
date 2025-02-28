@@ -14,7 +14,7 @@ TGIF can be installed via pip.
 ``` pip install TGIF ```
 
 ## How to use
-The main function is ```plot_and_save_fitting_results``` which makes plot and saves the fit result.
+The main function is ```plot_and_save_fitting_results``` which makes plots and saves the fit results.
 TGIF has two free parameters for the fitting--```fitting_size``` and ```maximum_size```.
 ```fitting_size``` controls the size of the cutout array used for the fitting in the units of the major axis size of the image beam. The default is 0.7.
 ```maximum_size``` is the maximum size of the 2D gaussian ellipse major axis in the units of the image beam size. The default is 4.
