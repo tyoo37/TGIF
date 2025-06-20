@@ -4,12 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "TGIF"
-version = "0.0.1"
+version = "1.0.5"
 
 dependencies = [
     "numpy",
     "scipy",
     "astropy",
     "matplotlib",
-    "pandas"
-]
+    "pandas"]

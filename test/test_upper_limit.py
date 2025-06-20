@@ -5,17 +5,20 @@ import astropy.units as u
 import TGIF.TGIF as tgif
 import matplotlib.pyplot as plt
 
-def generate_mock_image(image_beam, image_size, peak_height, bkg_value, bkg_mad, major_sig_pix, minor_sig_pix, pa):
+def generate_mock_image(image_beam, image_size, peak_height, bkg_value, bkg_mad, major_sig_pix, minor_sig_pix, pa, pixel_scale):
     """
     Generate a mock image with a single elliptical Gaussian source
     """
     #y,x = np.mgrid[:image_size[0],:image_size[1]]
-    region_pix = EllipsePixelRegion(center=PixCoord(x=image_size/2, y=image_size/2), 
-                       height = major_sig_pix, width = minor_sig_pix, angle=pa)
+   # print(major_sig_pix, minor_sig_pix)
+    
+    region_pix = EllipsePixelRegion(center=PixCoord(x=image_size[1]/2, y=image_size[0]/2), 
+                       height = major_sig_pix.value, width = minor_sig_pix.value, angle=pa)
     mask = region_pix.to_mask(mode='exact')
     model_image = mask.to_image(image_size)
     sig_to_fwhm = 2*np.sqrt(2*np.log(2))
-    kernel = Gaussian2DKernel(x_stddev = image_beam.major / sig_to_fwhm , y_stddev = image_beam.minor / sig_to_fwhm, 
+    kernel = Gaussian2DKernel(x_stddev = (image_beam.major / pixel_scale).to(u.deg/u.deg) / sig_to_fwhm, 
+                              y_stddev = (image_beam.minor / pixel_scale).to(u.deg/u.deg) / sig_to_fwhm, 
                               theta = 180*u.deg - image_beam.pa)
     conv_image = convolve(model_image, kernel,preserve_nan=True)
     conv_image = conv_image/np.nanmax(conv_image) * peak_height
@@ -29,15 +32,17 @@ def generate_random_disks(peak_height, bkg_val, bkg_mad, rad_arr,  pa_arr, incl_
     deconv_minor_arr = np.zeros((len(rad_arr), len(pa_arr), len(incl_arr)))
 
     for i, rad in enumerate(rad_arr):
-        rad_pix = distance.to(u.pc) / rad.to(u.au) / pixel_scale
+        rad_pix = (rad.to(u.au) * u.arcsec / distance.to(u.pc) / pixel_scale).to(u.dimensionless_unscaled)
         for j, pa in enumerate(pa_arr):
             for k, incl in enumerate(incl_arr):
                 axis_ratio = np.sin(incl.to(u.rad))
-                image = generate_mock_image(image_beam, image_size, peak_height, bkg_val, bkg_mad, rad_pix, rad_pix*axis_ratio, pa)
-                tab = tgif.plot_and_save_fitting_results(image, [image.shape[1]/2, image.shape[0]/2], image_beam, wcs, pixel_scale, 
-                                                   fitting_size=0.6)
-                deconv_major = tab['deconvolved_major']
-                deconv_minor = tab['deconvolved_minor']
+                print(rad_pix, axis_ratio)
+                print('ho',peak_height, bkg_val, bkg_mad)
+                image = generate_mock_image(image_beam, image_size, peak_height, bkg_val, bkg_mad, rad_pix, rad_pix*axis_ratio, pa, pixel_scale)
+                _, _, _, _, _, _, _, _, deconv_major, deconv_minor= tgif.plot_and_save_fitting_results(image, [image.shape[1]/2, image.shape[0]/2], image_beam, wcs, pixel_scale, 
+                                                   fitting_size=0.6, make_plot=False) 
+                #deconv_major = tab['deconvolved_major']
+                #deconv_minor = tab['deconvolved_minor']
                 deconv_major_arr[i,j,k] = deconv_major
                 deconv_minor_arr[i,j,k] = deconv_minor
     return deconv_major_arr, deconv_minor_arr
@@ -93,7 +98,7 @@ def test_upper_limit(rad_arr, pa_arr, incl_arr, data, peakxy, beam, wcsNB, pixel
             do_subpixel_adjust = True    
         positions_original = (peakxy[i,0], peakxy[i,1])
         positions = tgif.redefine_center(data, positions_original)
-        cutout_small, results, xcen_fit_init, ycen_fit_init, peak_fit_init = tgif.fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
+        results, xcen_fit_init, ycen_fit_init, peak_fit_init = tgif.fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, 
                                                                                                  subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
                                                                                                  fitting_size=fitting_size, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
         popt = results.params
@@ -102,7 +107,7 @@ def test_upper_limit(rad_arr, pa_arr, incl_arr, data, peakxy, beam, wcsNB, pixel
         pa_init = popt['theta'] * 180 / np.pi
         fitted_major_init = popt['sigma_x']
         fitted_minor_init = popt['sigma_y']
-        print('xcen_init,ycen_init,pa_init,fitted_major_init,fitted_minor_init',xcen_init,ycen_init,pa_init,fitted_major_init,fitted_minor_init)
+       # print('xcen_init,ycen_init,pa_init,fitted_major_init,fitted_minor_init',xcen_init,ycen_init,pa_init,fitted_major_init,fitted_minor_init)
         bkg, bkg_mad = tgif.get_local_bkg(data, xcen_init, ycen_init, pa_init, peakxy, wcsNB, beam, pixel_scale,
                                      inner_width=bkg_inner_width*fitted_major_init, outer_width=(bkg_inner_width+bkg_annulus_width)*fitted_major_init, 
                                      inner_height=bkg_inner_height*fitted_major_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_major_init)
