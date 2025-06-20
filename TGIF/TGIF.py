@@ -1142,7 +1142,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         for i in range(num_source):
         
         
-            if peakxy[i,0]<0 or peakxy[i,1]<0 :
+            if peakxy[i,0]<=0 or peakxy[i,1]<=0 :
                 fitted_major_arr.append(np.nan)
                 fitted_minor_arr.append(np.nan)
                 peak_arr.append(np.nan)
