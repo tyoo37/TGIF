@@ -1138,7 +1138,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         flux_err_arr = []  
         deconvolved_major_arr = []
         deconvolved_minor_arr = []
-
+        deconvolved_angle_arr = []
         for i in range(num_source):
         
         
@@ -1249,12 +1249,15 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 deconvolved = fitted_gaussian_as_beam.deconvolve(beam)
                 deconvolved_major = deconvolved.major.value
                 deconvolved_minor = deconvolved.minor.value
+                deconvolved_angle = deconvolved.pa.value
             except:
                 deconvolved_major =0
                 deconvolved_minor =0
+                deconvolved_angle = 0
 
             deconvolved_major_arr.append(deconvolved_major)
             deconvolved_minor_arr.append(deconvolved_minor)
+            deconvolved_angle_arr.append(deconvolved_angle)
         
 
             pa_arr.append(pa)
@@ -1282,12 +1285,13 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         fitted_minor_column = MaskedColumn(data=fitted_minor_arr, name='fitted_minor', mask=np.isnan(fitted_minor_arr), unit=fwhm_unit, fill_value=-999)
         fitted_major_err_column = MaskedColumn(data=fitted_major_err_arr, name='fitted_major_err', mask=np.isnan(fitted_major_err_arr), unit=fwhm_unit, fill_value=-999)  
         fitted_minor_err_column = MaskedColumn(data=fitted_minor_err_arr, name='fitted_minor_err', mask=np.isnan(fitted_minor_err_arr), unit=fwhm_unit, fill_value=-999)  
-        pa_column = MaskedColumn(data=pa_arr, name='pa', mask=np.isnan(pa_arr), unit=u.deg, fill_value=-999) 
+        pa_column = MaskedColumn(data=pa_arr, name='fitted_pa', mask=np.isnan(pa_arr), unit=u.deg, fill_value=-999) 
         pa_err_column = MaskedColumn(data=pa_err_arr, name='pa_err', mask=pd.isnull(pa_err_arr), unit=u.deg, fill_value=-999) 
         flux_column = MaskedColumn(data=flux_arr, name='flux', mask=np.isnan(flux_arr), unit=u.Jy, fill_value=-999)
         flux_err_column = MaskedColumn(data=flux_err_arr, name='flux_err', mask=np.isnan(flux_err_arr), unit=u.Jy, fill_value=-999)
         deconvolved_major_column = MaskedColumn(data=deconvolved_major_arr, name='deconvolved_major', mask=np.isnan(deconvolved_major_arr), unit=fwhm_unit, fill_value=-999)
         deconvolved_minor_column = MaskedColumn(data=deconvolved_minor_arr, name='deconvolved_minor', mask=np.isnan(deconvolved_minor_arr), unit=fwhm_unit, fill_value=-999)
+        deconvolved_angle_column = MaskedColumn(data=deconvolved_angle_arr, name='deconvolved_angle', mask=np.isnan(deconvolved_angle_arr), unit=u.deg, fill_value=-999)
         peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
 
         tab = save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, 
