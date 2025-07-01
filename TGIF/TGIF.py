@@ -943,7 +943,7 @@ def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, p
 
        
 def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, pa_err,
-                         flux, flux_err, deconvolved_major_arr, deconvolved_minor_arr,
+                         flux, flux_err, deconvolved_major_arr, deconvolved_minor_arr, deconvolved_angle_arr,
                          peak_arr,
                          savedir='./', label='w51e',):
     
@@ -979,12 +979,12 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, 
                  pa, pa_err, 
                  fitted_major, major_err,
                  fitted_minor, minor_err,
-                deconvolved_major_arr, deconvolved_minor_arr, peak_arr],
+                deconvolved_major_arr, deconvolved_minor_arr, deconvolved_angle_arr, peak_arr],
                 names=('flux', 'flux_err',
                         'pa', 'pa_err',
                        'fitted_major', 'fitted_major_err',
                        'fitted_minor', 'fitted_minor_err', 
-                       'deconvolved_major', 'deconvolved_minor', 
+                       'deconvolved_major', 'deconvolved_minor', 'deconvolved_angle',
                        'peak_flux'
                        ))
 
@@ -1115,9 +1115,11 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             deconvolved = fitted_gaussian_as_beam.deconvolve(beam)
             deconvolved_major = deconvolved.major.value
             deconvolved_minor = deconvolved.minor.value
+            deconvolved_angle = deconvolved.pa.to(u.deg).value
         except:
             deconvolved_major =0
             deconvolved_minor =0   
+            deconvolved_angle = -999
         if isinstance(flux_err, u.Quantity):
             flux_err = flux_err.value
         return flux, flux_err, pa, pa_err, fitted_major, fitted_major_err, fitted_minor, fitted_minor_err, deconvolved_major, deconvolved_minor
@@ -1155,6 +1157,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 flux_err_arr.append(np.nan)
                 deconvolved_major_arr.append(np.nan)
                 deconvolved_minor_arr.append(np.nan)
+                deconvolved_angle_arr.append(np.nan)
                 continue
             
             if i in fitting_size_dict:
@@ -1253,7 +1256,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             except:
                 deconvolved_major =0
                 deconvolved_minor =0
-                deconvolved_angle = 0
+                deconvolved_angle =-999
 
             deconvolved_major_arr.append(deconvolved_major)
             deconvolved_minor_arr.append(deconvolved_minor)
@@ -1295,7 +1298,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
 
         tab = save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, 
-                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, peak_column, savedir=savefitsdir, label=label_fits)
+                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, deconvolved_angle_column, peak_column, savedir=savefitsdir, label=label_fits)
                       
         return tab
 
