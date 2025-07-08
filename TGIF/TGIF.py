@@ -645,7 +645,8 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, rms, subpixel
         plt.setp(plt.getp(cbar.ax.axes, 'xticklabels'), color='w')
         plt.show()
         plt.close()
-    reduced_chi_square = np.nanmean(residual(params, x, y, cutout_data, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min, rms)**2)
+    dof = cutout_data.shape[0]*cutout_data.shape[1] - len(results.params)
+    reduced_chi_square = np.nansum(residual(params, x, y, cutout_data, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min, rms))/dof
     return results, xcen_subpixel_val + cutout.xmin_original, ycen_subpixel_val + cutout.ymin_original, adjusted_peakval_min, reduced_chi_square
 
 def add_beam(ax,xpos,ypos,beam, pixel_scale,color='w',square=False,square_size=800):
@@ -1167,6 +1168,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 deconvolved_major_arr.append(np.nan)
                 deconvolved_minor_arr.append(np.nan)
                 deconvolved_angle_arr.append(np.nan)
+                least_chi_square_arr.append(np.nan)
                 continue
             
             if i in fitting_size_dict:
@@ -1305,10 +1307,10 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         deconvolved_minor_column = MaskedColumn(data=deconvolved_minor_arr, name='deconvolved_minor', mask=np.isnan(deconvolved_minor_arr), unit=fwhm_unit, fill_value=-999)
         deconvolved_angle_column = MaskedColumn(data=deconvolved_angle_arr, name='deconvolved_angle', mask=np.isnan(deconvolved_angle_arr), unit=u.deg, fill_value=-999)
         peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
-        
+        least_chi_square_column = MaskedColumn(data=np.array(least_chi_square_arr), name='least_chi_square', mask=np.isnan(least_chi_square_arr), unit=u.dimensionless_unscaled, fill_value=-999)
 
         tab = save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, 
-                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, deconvolved_angle_column, peak_column, np.array(least_chi_square_arr), savedir=savefitsdir, label=label_fits)
+                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, deconvolved_angle_column, peak_column, least_chi_square_column, savedir=savefitsdir, label=label_fits)
                       
         return tab
 
