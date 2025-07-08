@@ -587,7 +587,6 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, rms, subpixel
                              args=(x, y, cutout_data, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min, rms), 
                              method='leastsq')
     
-    reduced_chi_square = residual(params, x, y, cutout_data, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min, rms)
     if report_fit:
         lmfit.report_fit(results)
     if plot:
@@ -646,7 +645,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, rms, subpixel
         plt.setp(plt.getp(cbar.ax.axes, 'xticklabels'), color='w')
         plt.show()
         plt.close()
-
+    reduced_chi_square = np.nanmean(residual(params, x, y, cutout_data, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min, rms)**2)
     return results, xcen_subpixel_val + cutout.xmin_original, ycen_subpixel_val + cutout.ymin_original, adjusted_peakval_min, reduced_chi_square
 
 def add_beam(ax,xpos,ypos,beam, pixel_scale,color='w',square=False,square_size=800):
