@@ -792,22 +792,22 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     ax1.vlines(-fitting_size_in_pixel,
                np.min((np.nanmin(profile1d_maj), np.nanmin(gaussian(distarr, 0, minor, peak)))),
      np.max((1.1*np.nanmax(profile1d_maj), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))),
-     ls='dashed',c='k')
+     ls='dashed',colors='k')
     ax1.vlines(fitting_size_in_pixel,
                np.min((np.nanmin(profile1d_maj), np.nanmin(gaussian(distarr, 0, minor, peak)))),
      np.max((1.1*np.nanmax(profile1d_maj), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))),
-     ls='dashed',c='k')
+     ls='dashed',colors='k')
 
     ax2.set_ylim(np.min((np.nanmin(profile1d_maj), np.nanmin(gaussian(distarr, 0, minor, peak)))),
      np.max((1.1*np.nanmax(profile1d_maj), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))))
     ax2.vlines(-fitting_size_in_pixel,
                np.min((np.nanmin(profile1d_min), np.nanmin(gaussian(distarr, 0, minor, peak)))),  
         np.max((1.1*np.nanmax(profile1d_min), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))),   
-        ls='dashed',c='k')
+        ls='dashed',colors='k')
     ax2.vlines(fitting_size_in_pixel,
                 np.min((np.nanmin(profile1d_min), np.nanmin(gaussian(distarr, 0, minor, peak)))),  
           np.max((1.1*np.nanmax(profile1d_min), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))),   
-          ls='dashed',c='k')
+          ls='dashed',colors='k')
     
 
     ax3.set_ylim(1.1*np.nanmin([np.nanmin(res_maj),np.nanmin(res_min)]), 1.1*np.nanmax([np.nanmax(res_maj),np.nanmax(res_min)]))
