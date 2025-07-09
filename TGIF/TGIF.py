@@ -814,7 +814,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     ax1.text(-(numpoints-1)/2*iterstep*0.9, np.nanmax(profile1d_maj), '#%d'%idx, fontsize=30)
     if least_chi_square is not None:
         ax1.text(-(numpoints-1)/2*iterstep*0.9, np.nanmax(profile1d_maj)*0.9, r'chi_square=%.2f'%least_chi_square, fontsize=30)
-        ax1.text(-(numpoints-1)/2*iterstep*0.9, np.nanmax(profile1d_maj)*0.8, r'chi_square/Fpeak=%.2f'%(least_chi_square/peak), fontsize=30)
+        ax1.text(-(numpoints-1)/2*iterstep*0.9, np.nanmax(profile1d_maj)*0.8, r'chi_square/Fpeak=%.2e'%(least_chi_square/peak**2), fontsize=30)
     major_fwhm = major * 2*np.sqrt(2*np.log(2))
     minor_fwhm = minor * 2*np.sqrt(2*np.log(2))
     extent = (-int(cutout_data.shape[1]/2),int(cutout_data.shape[1]/2),-int(cutout_data.shape[0]/2),int(cutout_data.shape[0]/2))
