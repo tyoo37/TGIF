@@ -647,6 +647,7 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, rms, subpixel
         plt.close()
     dof = cutout_data.shape[0]*cutout_data.shape[1] - len(results.params)
     reduced_chi_square = np.nansum(residual(params, x, y, cutout_data, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min, rms))/dof
+
     return results, xcen_subpixel_val + cutout.xmin_original, ycen_subpixel_val + cutout.ymin_original, adjusted_peakval_min, reduced_chi_square
 
 def add_beam(ax,xpos,ypos,beam, pixel_scale,color='w',square=False,square_size=800):
@@ -694,7 +695,7 @@ def get_profile1d(cutout_data, xcen, ycen, inclination, numpoints=199, distarr_s
 
 def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, major, minor, peak, pixel_scale, background, 
                          major_err, minor_err, 
-                         beam, wcsNB, plot_size=4,
+                         beam, wcsNB, fitting_size, plot_size=4,
                         idx=0, issqrt=True, iterstep=0.01,
                          vmin=-0.00010907209521789237, vmax=0.002236069086983825, flux_unit='Jy/beam',  
                         bkg_inner_width=3, bkg_annulus_width=1, bkg_inner_height=3, bkg_annulus_height=1,
@@ -783,15 +784,37 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     ax1.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep)
     ax2.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep)
     ax3.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep)
+
+    fitting_size_in_pixel = fitting_size * numpix_major
     
     ax1.set_ylim(np.min((np.nanmin(profile1d_maj), np.nanmin(gaussian(distarr, 0, minor, peak)))),
      np.max((1.1*np.nanmax(profile1d_maj), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))))
+    ax1.vlines(-fitting_size_in_pixel,
+               np.min((np.nanmin(profile1d_maj), np.nanmin(gaussian(distarr, 0, minor, peak)))),
+     np.max((1.1*np.nanmax(profile1d_maj), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))),
+     ls='dashed',c='k')
+    ax1.vlines(fitting_size_in_pixel,
+               np.min((np.nanmin(profile1d_maj), np.nanmin(gaussian(distarr, 0, minor, peak)))),
+     np.max((1.1*np.nanmax(profile1d_maj), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))),
+     ls='dashed',c='k')
+
     ax2.set_ylim(np.min((np.nanmin(profile1d_maj), np.nanmin(gaussian(distarr, 0, minor, peak)))),
      np.max((1.1*np.nanmax(profile1d_maj), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))))
+    ax2.vlines(-fitting_size_in_pixel,
+               np.min((np.nanmin(profile1d_min), np.nanmin(gaussian(distarr, 0, minor, peak)))),  
+        np.max((1.1*np.nanmax(profile1d_min), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))),   
+        ls='dashed',c='k')
+    ax2.vlines(fitting_size_in_pixel,
+                np.min((np.nanmin(profile1d_min), np.nanmin(gaussian(distarr, 0, minor, peak)))),  
+          np.max((1.1*np.nanmax(profile1d_min), 1.1*np.nanmax(gaussian(distarr, 0, minor, peak)))),   
+          ls='dashed',c='k')
+    
+
     ax3.set_ylim(1.1*np.nanmin([np.nanmin(res_maj),np.nanmin(res_min)]), 1.1*np.nanmax([np.nanmax(res_maj),np.nanmax(res_min)]))
     ax1.text(-(numpoints-1)/2*iterstep*0.9, np.nanmax(profile1d_maj), '#%d'%idx, fontsize=30)
     if least_chi_square is not None:
-        ax1.text(-(numpoints-1)/2*iterstep*0.9, np.nanmax(profile1d_maj)*0.9, 'chi-square: %.2f'%least_chi_square, fontsize=30)
+        ax1.text(-(numpoints-1)/2*iterstep*0.9, np.nanmax(profile1d_maj)*0.9, r'$\Chi_{res}$=%.2f'%least_chi_square, fontsize=30)
+        ax1.text(-(numpoints-1)/2*iterstep*0.9, np.nanmax(profile1d_maj)*0.8, r'$\Chi_{res}/F_{peak}$%.2f'%(least_chi_square/peak), fontsize=30)
     major_fwhm = major * 2*np.sqrt(2*np.log(2))
     minor_fwhm = minor * 2*np.sqrt(2*np.log(2))
     extent = (-int(cutout_data.shape[1]/2),int(cutout_data.shape[1]/2),-int(cutout_data.shape[0]/2),int(cutout_data.shape[0]/2))
@@ -1100,7 +1123,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
 
         if make_plot:
             plot_for_individual(data, xcen, ycen, peakxy[0], peakxy[1], pa, fitted_major, fitted_minor, peak, pixel_scale, bkg, fitted_major_err, fitted_minor_err,  
-                                    beam, wcsNB,
+                                    beam, wcsNB,fitting_size,
                                     idx=idx, issqrt=issqrt,
                                     vmin=vmin, vmax=vmax,  
                                     plot_size=10, flux_unit = flux_unit,
@@ -1241,7 +1264,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 
             if make_plot:
                 plot_for_individual(data, xcen, ycen, peakxy[i,0], peakxy[i,1], pa, fitted_major/sig_to_fwhm, fitted_minor/sig_to_fwhm, peak, pixel_scale, bkg, fitted_major_err/sig_to_fwhm, fitted_minor_err/sig_to_fwhm,  
-                                    beam, wcsNB, least_chi_square=reduced_chi_square,
+                                    beam, wcsNB, fitting_size, least_chi_square=reduced_chi_square,
                                     idx=i, issqrt=issqrt,
                                     vmin=vmin, vmax=vmax,  
                                     plot_size=10, flux_unit = flux_unit,
