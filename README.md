@@ -27,58 +27,60 @@ One of the good way to use this function is just running the code with default s
 Here's an example jupyter notebook.
 ```python
 import TGIF.TGIF as tgif 
-import Paths.Paths as paths # This is for reading python file storing some file paths. you don't have to use this.
 from radio_beam import Beam
 from astropy.io import fits
 from astropy.wcs import WCS
 from astropy.table import Table
 
 import numpy as np
-Path = paths.filepaths() # again, don't need to use this.
 
-#loading image fits file
-fitsdata_b3 = fits.open(Path.w51e_b3_cont_local)
-image_b3 = fitsdata_b3[0].data
-if len(image_b3.shape)>2:
-    image_b3 = fitsdata_b3[0].data[0][0]
+import TGIF.TGIF as tgif
+import Paths.Paths as paths
+from radio_beam import Beam
+from astropy.io import fits
+from astropy.wcs import WCS
+from astropy.table import Table
 
-#header
-hdrNB3 = fits.getheader(Path.w51e_b3_cont_local)  #header of the image fits
+import numpy as np
+Path = paths.filepaths()
 
-#wcs
-wcsNB3 = WCS(hdrNB3,naxis=2)
-#image beam
-my_beamNB3 = Beam.from_fits_header(hdrNB3)
-#pixel_scale
-scaleNB3 = wcsNB3.proj_plane_pixel_scales()[0]
+def run_tgif(fitsfile, catalogfile, saveimgdir='', label_img='', savefitsdir='', fix_pos_idx=[], fitting_size_dict={}):
+    """
+    Run TGIF on the specified FITS file and catalog, saving results to PNG and FITS files.
+    Parameters:
+    fitsfile (str): Path to the FITS file containing the image data.
+    catalogfile (str): Path to the catalog file containing peak positions of sources.
+    saveimgdir (str): Path to the directory where the image showing the fitting result is saved.
+    label_img (str): Label of the image file name. For example, the filename of the saved image will be (saveimgdir)/(label_img)_(six-digits index of the source).png
+    savefitsdir (str) : Path to the directory where the fitting result table is saved.
+    fix_pos_idx (list): Indices for sources which needs their peak positions to be fixed at the initial guess points. This is for sources with bad centering issue due to their faint peaks.
+    fitting_size_dict (dict): Dictionary mapping indices to specific fitting sizes (default is empty dictionary)
+    """
 
-# load the catalog file and assign the peak positions of each sources to start fitting
-catalog = Table.read(Path.w51e_dendro_matched_catalog_local)
-peakxy_b3 = np.vstack((catalog['b3_xpix'], catalog['b3_ypix'])).T #pixel coordinates of sources
+    fitsdata = fits.open(fitsfile)
+    image = fitsdata[0].data
+    if len(image.shape)>2:
+        image= fitsdata[0].data[0][0]
+   
+    hdr = fits.getheader(fitsfile)  
+    wcs = WCS(hdr,naxis=2)
 
-# main function for savning and plotting the fitting results
-tgif.plot_and_save_fitting_results(image_b3, peakxy_b3, my_beamNB3, wcsNB3, scaleNB3, fitting_size_default=0.6, saveimgdir='image_new/',label_img='w51e_b3',
-                                   vmin=None, vmax=None, maximum_size=4,savefitsdir='/home/t.yoo/w51/catalogue/photometry/flux_new/', label_fits='w51e_b3_test',
-                                  fitting_size_dict={10: 1,
-                                                    13: 1,
-                                                    20: 1,
-                                                    21: 1.2,
-                                                    30: 1.5,
-                                                    32: 0.5,
-                                                    35: 0.5,
-                                                    38: 1.5,
-                                                    39: 2,
-                                                    48:0.5,
-                                                    56: 0.6,
-                                                    66: 0.5,
-                                                    72:1,
-                                                    73:0.3,
-                                                    74: 3.,
-                                                    76: 3,
-                                                    124: 1})
+    beam = Beam.from_fits_header(hdr)
+
+    pixel_scale = wcs.proj_plane_pixel_scales()[0]
+
+    catalog = Table.read(catalogfile)
+    peakxy = np.vstack((catalog[f'{band}_xpix'], catalog[f'{band}_ypix'])).T
+
+    peakxy_sky = np.vstack((catalog['b3_xsky'], catalog['b3_ysky'])).T
+
+
+    tgif.plot_and_save_fitting_results(image, peakxy, beam, wcs, pixel_scale, fitting_size_default=0.6, saveimgdir=saveimgdir, label_img=label_img,
+                                vmin=None, vmax=None, maximum_size=4, savefitsdir=savefitsdir,fix_pos_idx=fix_pos_idx, fitting_size_dict=fitting_size_dict)
+
 ```
 
-## arguments for the main function
+## arguments for the main function ```plot_and_save_fitting_results```
 ```data```: 2d array of the image
 
 ```peakxy```: list of the pixel coordinates of the sources
@@ -87,9 +89,9 @@ tgif.plot_and_save_fitting_results(image_b3, peakxy_b3, my_beamNB3, wcsNB3, scal
 
 ```wcsNB```: WCS object of the image
 
-```pixel_scale```: pixel scale of the image
+```pixel_scale```: pixel scale of the image in the unit of angle (astropy.Quantity)
 
-```fitting_size_default```: default size of the fitting box
+```fitting_size_default```: default size of the fitting box in the unit of the beam major size
 
 ```issqrt```: if True, the image is shown in sqrt scale (default: True)
 
@@ -152,8 +154,12 @@ The tables contains following information:
 
 ```deconvolved_minor```: FWHM of Gaussian width along the minor axis deconvolved to the image beam. 
 
-```peal_flux``` : the peak flux of the 2D Gaussian model
+```deconvolved_angle```: the position angle of the deconvolved 2D gaussian model
 
+```peak_flux``` : the peak flux of the 2D Gaussian model
 
+```bad_centering```: flag for whether TGIF fails to find the exact peak
+
+```least_chi_square``` : (for testing) chi-square values from the fitting
 
 
