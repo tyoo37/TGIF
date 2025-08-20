@@ -42,7 +42,7 @@ from astropy.wcs import WCS
 from astropy.table import Table
 
 import numpy as np
-Path = paths.filepaths()
+
 
 def run_tgif(fitsfile, catalogfile, saveimgdir='', label_img='', savefitsdir='', fix_pos_idx=[], fitting_size_dict={}):
     """
