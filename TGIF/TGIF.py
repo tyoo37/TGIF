@@ -27,6 +27,212 @@ def gaussian(x, mu, sig, norm):
     return norm*np.exp(-np.power((x - mu)/sig, 2.)/2)
 
 
+def marginal_fit(cutout_data, gaussian_kernel, xwt, ywt, size, center, sigma, axis=0):
+    """
+    Fit 1D Gaussian to marginal distribution.
+    
+    Parameters
+    ----------
+    cutout_data : 2D array
+        Data cutout
+    gaussian_kernel : 2D array
+        Gaussian kernel
+    xwt, ywt : 2D arrays
+        Triangular weight arrays
+    size : int
+        Size along the axis
+    center : float
+        Center position
+    sigma : float
+        Gaussian sigma
+    axis : int
+        0 for x-axis, 1 for y-axis
+        
+    Returns
+    -------
+    dx : float
+        Centroid shift
+    hx : float
+        Fit amplitude
+    """
+    if axis == 0:  # x-axis
+        wt = xwt[0]
+        wts = ywt
+        dxx = center - np.arange(size)
+    else:  # y-axis
+        wt = np.transpose(ywt)[0]
+        wts = xwt
+        dxx = np.arange(size) - center
+    
+    wt_sum = np.sum(wt)
+    dx_arr = center - np.arange(size)
+    
+    # Weighted marginal sums
+    kern_sum_1d = np.sum(gaussian_kernel * wts, axis=axis)
+    kern_sum = np.sum(kern_sum_1d * wt)
+    kern2_sum = np.sum(kern_sum_1d**2 * wt)
+    
+    dkern_dx = kern_sum_1d * dx_arr
+    dkern_dx_sum = np.sum(dkern_dx * wt)
+    dkern_dx2_sum = np.sum(dkern_dx**2 * wt)
+    kern_dkern_dx_sum = np.sum(kern_sum_1d * dkern_dx * wt)
+    
+    data_sum_1d = np.sum(cutout_data * wts, axis=axis)
+    data_sum = np.sum(data_sum_1d * wt)
+    data_kern_sum = np.sum(data_sum_1d * kern_sum_1d * wt)
+    data_dkern_dx_sum = np.sum(data_sum_1d * dkern_dx * wt)
+    data_dx_sum = np.sum(data_sum_1d * dxx * wt)
+    
+    # Linear least-squares fit
+    hx_numer = data_kern_sum - (data_sum * kern_sum) / wt_sum
+    hx_denom = kern2_sum - (kern_sum**2 / wt_sum)
+    
+    with np.warnings.catch_warnings():
+        np.warnings.simplefilter('ignore', RuntimeWarning)
+        hx = hx_numer / hx_denom
+        dx = ((kern_dkern_dx_sum - 
+               (data_dkern_dx_sum - dkern_dx_sum * data_sum)) /
+              (hx * dkern_dx2_sum / sigma**2))
+        dx2 = data_dx_sum / data_sum
+    
+    # Apply masks for invalid fits
+    hsize = size / 2.0
+    if (hx_numer <= 0.0) or (hx_denom <= 0.0):
+        return np.nan, np.nan
+    if np.abs(dx) > hsize:
+        if data_sum == 0.0:
+            dx = 0.0
+        else:
+            dx = dx2
+    if np.abs(dx) > hsize:
+        dx = 0.0
+    
+    return dx, hx
+
+
+def calculate_daofind_metrics_from_model(data, model, xcen, ycen, sigma_x, sigma_y, theta, background=0.0):
+    """
+    Calculate DAOFind metrics using a fitted Gaussian model.
+    
+    Parameters
+    ----------
+    data : 2D array
+        The original image data cutout
+    model : 2D array
+        The fitted Gaussian model (same shape as data)
+    xcen, ycen : float
+        Center coordinates in the cutout
+    sigma_x, sigma_y : float
+        Gaussian widths (sigma, not FWHM)
+    theta : float
+        Position angle in radians
+    background : float, optional
+        Background level to subtract (default: 0.0)
+        
+    Returns
+    -------
+    metrics : dict
+        Dictionary containing roundness1, roundness2, sharpness, qfit, cfit
+    """
+    from scipy.ndimage import convolve
+    
+    # Subtract background
+    data_bkgsub = data - background
+    
+    # Create Gaussian kernel matching the fitted parameters
+    kernel_shape = data.shape
+    ycen_cut, xcen_cut = int(ycen), int(xcen)
+    
+    y_grid, x_grid = np.ogrid[:kernel_shape[0], :kernel_shape[1]]
+    y_grid = y_grid - ycen
+    x_grid = x_grid - xcen
+    
+    # Rotate coordinates
+    x_rot = np.cos(theta) * x_grid - np.sin(theta) * y_grid
+    y_rot = np.sin(theta) * x_grid + np.cos(theta) * y_grid
+    
+    # Create Gaussian kernel
+    gaussian_kernel = np.exp(-(x_rot**2 / (2 * sigma_x**2) + 
+                               y_rot**2 / (2 * sigma_y**2)))
+    kernel_normalized = gaussian_kernel / np.sum(gaussian_kernel)
+    
+    # Convolve data
+    convolved_data = convolve(data_bkgsub, kernel_normalized, mode='constant', cval=0.0)
+    
+    # Peak values
+    data_peak = data_bkgsub[ycen_cut, xcen_cut]
+    conv_peak = convolved_data[ycen_cut, xcen_cut]
+    
+    # ========== ROUNDNESS1 ==========
+    cutout_conv_copy = convolved_data.copy()
+    cutout_conv_copy[ycen_cut, xcen_cut] = 0.0
+    
+    quad1 = cutout_conv_copy[0:ycen_cut + 1, xcen_cut + 1:]
+    quad2 = cutout_conv_copy[0:ycen_cut, 0:xcen_cut + 1]
+    quad3 = cutout_conv_copy[ycen_cut:, 0:xcen_cut]
+    quad4 = cutout_conv_copy[ycen_cut + 1:, xcen_cut:]
+    
+    sum2 = (-quad1.sum() + quad2.sum() - quad3.sum() + quad4.sum())
+    sum4 = np.abs(cutout_conv_copy).sum()
+    
+    with np.warnings.catch_warnings():
+        np.warnings.simplefilter('ignore', RuntimeWarning)
+        roundness1 = 2.0 * sum2 / sum4 if sum4 != 0 else np.nan
+    
+    # ========== SHARPNESS ==========
+    mask = np.ones_like(data_bkgsub, dtype=bool)
+    cutout_data_masked = data_bkgsub * mask
+    npixels = np.sum(mask)
+    data_mean = (np.sum(cutout_data_masked) - data_peak) / (npixels - 1) if npixels > 1 else 0.0
+    
+    with np.warnings.catch_warnings():
+        np.warnings.simplefilter('ignore', RuntimeWarning)
+        sharpness = (data_peak - data_mean) / conv_peak if conv_peak != 0 else np.nan
+    
+    # ========== ROUNDNESS2 (from marginal fits) ==========
+    # Triangular weights
+    xx = xcen_cut - np.abs(np.arange(kernel_shape[1]) - xcen_cut) + 1
+    yy = ycen_cut - np.abs(np.arange(kernel_shape[0]) - ycen_cut) + 1
+    xwt, ywt = np.meshgrid(xx, yy)
+    
+    dx, hx = marginal_fit(data_bkgsub, gaussian_kernel, xwt, ywt, 
+                          kernel_shape[1], xcen_cut, sigma_x, axis=0)
+    dy, hy = marginal_fit(data_bkgsub, gaussian_kernel, xwt, ywt,
+                          kernel_shape[0], ycen_cut, sigma_y, axis=1)
+    
+    with np.warnings.catch_warnings():
+        np.warnings.simplefilter('ignore', RuntimeWarning)
+        roundness2 = 2.0 * (hx - hy) / (hx + hy) if (hx + hy) != 0 else np.nan
+    
+    # ========== QFIT (Quality of Fit) ==========
+    with np.warnings.catch_warnings():
+        np.warnings.simplefilter('ignore', RuntimeWarning)
+        sum_model = np.sum(np.abs(model * mask))
+        sum_data = np.sum(np.abs(data_bkgsub * mask))
+        qfit = sum_model / sum_data if sum_data != 0 else np.nan
+    
+    # ========== CFIT (Reduced Chi-squared) ==========
+    residual = data_bkgsub - model
+    
+    with np.warnings.catch_warnings():
+        np.warnings.simplefilter('ignore', RuntimeWarning)
+        mask_good = (model > 0.01 * np.nanmax(model)) & mask
+        if np.any(mask_good):
+            chi_squared = np.sum((residual[mask_good]**2) / np.abs(model[mask_good]))
+            dof = np.sum(mask_good) - 4  # 4 free parameters (x, y, major, minor)
+            cfit = chi_squared / dof if dof > 0 else np.nan
+        else:
+            cfit = np.nan
+    
+    return {
+        'roundness1': roundness1,
+        'roundness2': roundness2,
+        'sharpness': sharpness,
+        'qfit': qfit,
+        'cfit': cfit
+    }
+
+
 def gaussian2d(x, y, x_center, y_center, norm, theta=0, sigma_x = 10, sigma_y=10, sigma_diff=0, shift=0):
     # x_center and y_center will be the center of the gaussian, theta will be the rotation angle
     # sigma_x and sigma_y will be the stdevs in the x and y axis before rotation
@@ -597,6 +803,19 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, rms, subpixel
         reg = CirclePixelRegion(center,10)
         mask = reg.to_mask()
         model =  gaussian2d(x, y, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min,  **results.params)
+
+
+        metrics = calculate_daofind_metrics_from_model(
+        cutout_data, 
+        model,
+        xcen_subpixel_val, 
+        ycen_subpixel_val,
+        fitted_major,
+        fitted_minor,
+        fitted_pa,
+        background=background if background is not None else 0.0
+        )
+
         offset = cutout_data-model
         masked_offset = mask.multiply(offset)
         masked_image = mask.multiply(cutout_data)
@@ -651,7 +870,29 @@ def fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, rms, subpixel
     dof = cutout_data.shape[0]*cutout_data.shape[1] - len(results.params)
     reduced_chi_square = np.nansum(residual(params, x, y, cutout_data, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min, rms))/dof
 
-    return results, xcen_subpixel_val + cutout.xmin_original, ycen_subpixel_val + cutout.ymin_original, adjusted_peakval_min, reduced_chi_square, bad_centering
+    # Calculate DAOFind metrics using the fitted model
+    popt = results.params
+    fitted_major = popt['sigma_x']
+    fitted_minor = popt['sigma_y']
+    fitted_pa = popt['theta']
+    
+    y_grid, x_grid = np.mgrid[:cutout_data.shape[0], :cutout_data.shape[1]]
+    model = gaussian2d(x_grid, y_grid, xcen_subpixel_val, ycen_subpixel_val, adjusted_peakval_min, 
+                      theta=fitted_pa, sigma_x=fitted_major, sigma_y=fitted_minor, 
+                      sigma_diff=popt['sigma_diff'], shift=popt['shift'])
+    
+    metrics = calculate_daofind_metrics_from_model(
+        cutout_data, 
+        model,
+        xcen_subpixel_val, 
+        ycen_subpixel_val,
+        fitted_major,
+        fitted_minor,
+        fitted_pa,
+        background=background if background is not None else 0.0
+    )
+
+    return results, xcen_subpixel_val + cutout.xmin_original, ycen_subpixel_val + cutout.ymin_original, adjusted_peakval_min, reduced_chi_square, bad_centering, metrics
 
 def add_beam(ax,xpos,ypos,beam, pixel_scale,color='w',square=False,square_size=800):
     width = beam.major / pixel_scale
@@ -702,7 +943,7 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
                         idx=0, issqrt=True, iterstep=0.01,
                          vmin=-0.00010907209521789237, vmax=0.002236069086983825, flux_unit='Jy/beam',  
                         bkg_inner_width=3, bkg_annulus_width=1, bkg_inner_height=3, bkg_annulus_height=1,
-                          savedir='./',label='w51e', show=True, least_chi_square=None):
+                          savedir='./',label='w51e', show=True, least_chi_square=None, metrics=None):
     
     plt.rcParams['axes.labelsize']=25
     plt.rcParams['xtick.labelsize']=25
@@ -783,6 +1024,21 @@ def plot_for_individual(data,  xcen, ycen, xcen_original, ycen_original, pa, maj
     ax2.set_xlabel('pixel offset',fontsize=35)
     ax3.set_xlabel('pixel offset',fontsize=35)
     ax1.set_ylabel('flux (%s)'%flux_unit,fontsize=35)
+    
+    # Add metrics display
+    if metrics is not None:
+        text_y_start = np.nanmax(profile1d_maj) * 0.85
+        text_y_step = np.nanmax(profile1d_maj) * 0.08
+        ax1.text(-(numpoints-1)/2*iterstep*0.9, text_y_start, 
+                 f'Sharp: {metrics["sharpness"]:.3f}', fontsize=20, color='cyan')
+        ax1.text(-(numpoints-1)/2*iterstep*0.9, text_y_start - text_y_step, 
+                 f'R1: {metrics["roundness1"]:.3f}', fontsize=20, color='cyan')
+        ax1.text(-(numpoints-1)/2*iterstep*0.9, text_y_start - 2*text_y_step, 
+                 f'R2: {metrics["roundness2"]:.3f}', fontsize=20, color='cyan')
+        ax1.text(-(numpoints-1)/2*iterstep*0.9, text_y_start - 3*text_y_step, 
+                 f'Qfit: {metrics["qfit"]:.3f}', fontsize=20, color='cyan')
+        ax1.text(-(numpoints-1)/2*iterstep*0.9, text_y_start - 4*text_y_step, 
+                 f'Cfit: {metrics["cfit"]:.3f}', fontsize=20, color='cyan')
     
     ax1.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep)
     ax2.set_xlim(-(numpoints-1)/2*iterstep, (numpoints-1)/2*iterstep)
@@ -975,6 +1231,7 @@ def get_integrated_flux(norm, sigma_x, sigma_y, sigma_x_err, sigma_y_err,beam, p
 def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, pa_err,
                          flux, flux_err, deconvolved_major_arr, deconvolved_minor_arr, deconvolved_angle_arr,
                          peak_arr, least_chi_square_arr, bad_centering_arr,
+                         roundness1_arr=None, roundness2_arr=None, sharpness_arr=None, qfit_arr=None, cfit_arr=None,
                          savedir='./', label='w51e',):
     
     """
@@ -1004,21 +1261,40 @@ def save_fitting_results( fitted_major, fitted_minor, major_err, minor_err, pa, 
     
     from astropy.table import QTable
 
-    
-    tab = QTable([flux, flux_err, 
+    # Build table columns list
+    table_data = [flux, flux_err, 
                  pa, pa_err, 
                  fitted_major, major_err,
                  fitted_minor, minor_err,
-                deconvolved_major_arr, deconvolved_minor_arr, deconvolved_angle_arr, peak_arr,
-                least_chi_square_arr, bad_centering_arr],
-                names=('flux', 'flux_err',
-                        'pa', 'pa_err',
-                       'fitted_major', 'fitted_major_err',
-                       'fitted_minor', 'fitted_minor_err', 
-                       'deconvolved_major', 'deconvolved_minor', 'deconvolved_angle',
-                       'peak_flux',
-                       'least_chi_square', 'bad_centering'
-                       ))
+                 deconvolved_major_arr, deconvolved_minor_arr, deconvolved_angle_arr, peak_arr,
+                 least_chi_square_arr, bad_centering_arr]
+    
+    table_names = ['flux', 'flux_err',
+                   'pa', 'pa_err',
+                   'fitted_major', 'fitted_major_err',
+                   'fitted_minor', 'fitted_minor_err', 
+                   'deconvolved_major', 'deconvolved_minor', 'deconvolved_angle',
+                   'peak_flux',
+                   'least_chi_square', 'bad_centering']
+    
+    # Add metrics if provided
+    if roundness1_arr is not None:
+        table_data.append(roundness1_arr)
+        table_names.append('roundness1')
+    if roundness2_arr is not None:
+        table_data.append(roundness2_arr)
+        table_names.append('roundness2')
+    if sharpness_arr is not None:
+        table_data.append(sharpness_arr)
+        table_names.append('sharpness')
+    if qfit_arr is not None:
+        table_data.append(qfit_arr)
+        table_names.append('qfit')
+    if cfit_arr is not None:
+        table_data.append(cfit_arr)
+        table_names.append('cfit')
+    
+    tab = QTable(table_data, names=table_names)
 
     tab.pprint_all()
 
@@ -1035,8 +1311,6 @@ def redefine_center(img, positions, searching_rad=4):
     cutout = Cutout2D(img, positions, (searching_rad, searching_rad))
     ycen, xcen = np.unravel_index(np.nanargmax(cutout.data), cutout.data.shape)
     return xcen+cutout.xmin_original, ycen+cutout.ymin_original
-
-    
 
 def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                          fitting_size_default = 4,
@@ -1091,7 +1365,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         positions = redefine_center(data, peakxy)
 
         #initial guess for the fitting
-        results, xcen_fit_init, ycen_fit_init, peak_fit_init, reduced_chi_square, bad_centering = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, None, 
+        results, xcen_fit_init, ycen_fit_init, peak_fit_init, reduced_chi_square, bad_centering, metrics_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, None, 
                                                                                                     subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
                                                                                                     fitting_size=fitting_size_default, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust,
                                                                                                     subpixel_adjust_limit=subpixel_adjust_limit)
@@ -1105,7 +1379,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     inner_width=bkg_inner_width*fitted_major_init, outer_width=(bkg_inner_width+bkg_annulus_width)*fitted_major_init, 
                                     inner_height=bkg_inner_height*fitted_minor_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_minor_init)
         # main fitting
-        results, xcen_fit, ycen_fit, peak_fit, reduced_chi_square, bad_centering = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, bkg_mad,
+        results, xcen_fit, ycen_fit, peak_fit, reduced_chi_square, bad_centering, metrics = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, bkg_mad,
                                                                                 subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size_default, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust,
                                                                                 subpixel_adjust_limit=subpixel_adjust_limit)
         popt = results.params
@@ -1132,7 +1406,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     plot_size=10, flux_unit = flux_unit,
                                     bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
                                     bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
-                                    savedir=saveimgdir,label=label_img, show=show)
+                                    savedir=saveimgdir,label=label_img, show=show, metrics=metrics)
         if fitted_major_err is not None:
             flux, flux_err = get_integrated_flux(peak, fitted_major.value, fitted_minor.value, fitted_major_err, fitted_minor_err, beam, pixel_scale, flux_unit=flux_unit)
         else:
@@ -1178,6 +1452,11 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         deconvolved_angle_arr = []
         least_chi_square_arr = []
         bad_centering_arr = []
+        roundness1_arr = []
+        roundness2_arr = []
+        sharpness_arr = []
+        qfit_arr = []
+        cfit_arr = []
         for i in range(num_source):
         
         
@@ -1197,6 +1476,11 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 deconvolved_angle_arr.append(np.nan)
                 least_chi_square_arr.append(np.nan)
                 bad_centering_arr.append(np.nan)
+                roundness1_arr.append(np.nan)
+                roundness2_arr.append(np.nan)
+                sharpness_arr.append(np.nan)
+                qfit_arr.append(np.nan)
+                cfit_arr.append(np.nan)
                 continue
             
             if i in fitting_size_dict:
@@ -1210,7 +1494,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                 do_subpixel_adjust = True    
             positions_original = (peakxy[i,0], peakxy[i,1])
             positions = redefine_center(data, positions_original)
-            results, xcen_fit_init, ycen_fit_init, peak_fit_init, reduced_chi_square, bad_centering = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, None,
+            results, xcen_fit_init, ycen_fit_init, peak_fit_init, reduced_chi_square, bad_centering, metrics_init = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, None,
                                                                                                     subpixel_adjust_angle=180*u.deg-beam.pa, plot=False, 
                                                                                                     fitting_size=fitting_size, maximum_size=maximum_size,report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
             popt = results.params
@@ -1224,7 +1508,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                         inner_height=bkg_inner_height*fitted_major_init, outer_height=(bkg_inner_height+bkg_annulus_height)*fitted_major_init)
             
         
-            results, xcen_fit, ycen_fit, peak_fit, reduced_chi_square, bad_centering  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, bkg_mad,
+            results, xcen_fit, ycen_fit, peak_fit, reduced_chi_square, bad_centering, metrics  = fit_for_individuals(positions, data, wcsNB, beam, pixel_scale, bkg_mad,
                                                                                 subpixel_adjust_angle=pa_init*u.deg,background = bkg, plot=False, fitting_size=fitting_size, flux_unit=flux_unit, maximum_size=maximum_size, report_fit=False, do_subpixel_adjust=do_subpixel_adjust)
             popt = results.params
 
@@ -1267,6 +1551,13 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
             else:
                 fitted_minor_err_arr.append(np.nan)
                 
+            # Store metrics
+            roundness1_arr.append(metrics['roundness1'])
+            roundness2_arr.append(metrics['roundness2'])
+            sharpness_arr.append(metrics['sharpness'])
+            qfit_arr.append(metrics['qfit'])
+            cfit_arr.append(metrics['cfit'])
+            
             if make_plot:
                 plot_for_individual(data, xcen, ycen, peakxy[i,0], peakxy[i,1], pa, fitted_major/sig_to_fwhm, fitted_minor/sig_to_fwhm, peak, pixel_scale, bkg, fitted_major_err/sig_to_fwhm, fitted_minor_err/sig_to_fwhm,  
                                     beam, wcsNB, fitting_size, least_chi_square=reduced_chi_square,
@@ -1275,7 +1566,7 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
                                     plot_size=10, flux_unit = flux_unit,
                                     bkg_inner_width=bkg_inner_width, bkg_annulus_width=bkg_annulus_width,
                                     bkg_inner_height=bkg_inner_height, bkg_annulus_height=bkg_annulus_height,
-                                    savedir=saveimgdir,label=label_img, show=show)
+                                    savedir=saveimgdir,label=label_img, show=show, metrics=metrics)
             
             flux, flux_err = get_integrated_flux(peak, fitted_major / sig_to_fwhm, fitted_minor / sig_to_fwhm, fitted_major_err /sig_to_fwhm, fitted_minor_err /sig_to_fwhm, beam, pixel_scale, flux_unit=flux_unit)
             print('flux, fluxerr', flux, flux_err)
@@ -1340,8 +1631,18 @@ def plot_and_save_fitting_results(data, peakxy, beam, wcsNB, pixel_scale,
         peak_column = MaskedColumn(data=peak_arr, name='peak', mask=np.isnan(peak_arr), unit=flux_unit, fill_value=-999)
         least_chi_square_column = MaskedColumn(data=np.array(least_chi_square_arr), name='least_chi_square', mask=np.isnan(least_chi_square_arr), unit=u.dimensionless_unscaled, fill_value=-999)
         bad_centering_column = MaskedColumn(data=np.array(bad_centering_arr), name='bad_centering', mask=np.isnan(bad_centering_arr), unit=u.dimensionless_unscaled, fill_value=-999)
+        
+        # Create metric columns
+        roundness1_column = MaskedColumn(data=roundness1_arr, name='roundness1', mask=np.isnan(roundness1_arr), fill_value=-999)
+        roundness2_column = MaskedColumn(data=roundness2_arr, name='roundness2', mask=np.isnan(roundness2_arr), fill_value=-999)
+        sharpness_column = MaskedColumn(data=sharpness_arr, name='sharpness', mask=np.isnan(sharpness_arr), fill_value=-999)
+        qfit_column = MaskedColumn(data=qfit_arr, name='qfit', mask=np.isnan(qfit_arr), fill_value=-999)
+        cfit_column = MaskedColumn(data=cfit_arr, name='cfit', mask=np.isnan(cfit_arr), fill_value=-999)
+        
         tab = save_fitting_results(fitted_major_column, fitted_minor_column, fitted_major_err_column, fitted_minor_err_column, pa_column, pa_err_column, 
-                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, deconvolved_angle_column, peak_column, least_chi_square_column, bad_centering_column, savedir=savefitsdir, label=label_fits)
+                                flux_column, flux_err_column, deconvolved_major_column, deconvolved_minor_column, deconvolved_angle_column, peak_column, least_chi_square_column, bad_centering_column,
+                                roundness1_column, roundness2_column, sharpness_column, qfit_column, cfit_column,
+                                savedir=savefitsdir, label=label_fits)
 
         return tab
 
