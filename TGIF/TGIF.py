@@ -87,13 +87,12 @@ def marginal_fit(cutout_data, gaussian_kernel, xwt, ywt, size, center, sigma, ax
     hx_numer = data_kern_sum - (data_sum * kern_sum) / wt_sum
     hx_denom = kern2_sum - (kern_sum**2 / wt_sum)
     
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter('ignore', RuntimeWarning)
-        hx = hx_numer / hx_denom
-        dx = ((kern_dkern_dx_sum - 
-               (data_dkern_dx_sum - dkern_dx_sum * data_sum)) /
-              (hx * dkern_dx2_sum / sigma**2))
-        dx2 = data_dx_sum / data_sum
+   
+    hx = hx_numer / hx_denom
+    dx = ((kern_dkern_dx_sum - 
+            (data_dkern_dx_sum - dkern_dx_sum * data_sum)) /
+            (hx * dkern_dx2_sum / sigma**2))
+    dx2 = data_dx_sum / data_sum
     
     # Apply masks for invalid fits
     hsize = size / 2.0
