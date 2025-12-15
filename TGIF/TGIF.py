@@ -174,9 +174,8 @@ def calculate_daofind_metrics_from_model(data, model, xcen, ycen, sigma_x, sigma
     sum2 = (-quad1.sum() + quad2.sum() - quad3.sum() + quad4.sum())
     sum4 = np.abs(cutout_conv_copy).sum()
     
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter('ignore', RuntimeWarning)
-        roundness1 = 2.0 * sum2 / sum4 if sum4 != 0 else np.nan
+    
+    roundness1 = 2.0 * sum2 / sum4 if sum4 != 0 else np.nan
     
     # ========== SHARPNESS ==========
     mask = np.ones_like(data_bkgsub, dtype=bool)
@@ -184,9 +183,8 @@ def calculate_daofind_metrics_from_model(data, model, xcen, ycen, sigma_x, sigma
     npixels = np.sum(mask)
     data_mean = (np.sum(cutout_data_masked) - data_peak) / (npixels - 1) if npixels > 1 else 0.0
     
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter('ignore', RuntimeWarning)
-        sharpness = (data_peak - data_mean) / conv_peak if conv_peak != 0 else np.nan
+    
+    sharpness = (data_peak - data_mean) / conv_peak if conv_peak != 0 else np.nan
     
     # ========== ROUNDNESS2 (from marginal fits) ==========
     # Triangular weights
@@ -199,29 +197,26 @@ def calculate_daofind_metrics_from_model(data, model, xcen, ycen, sigma_x, sigma
     dy, hy = marginal_fit(data_bkgsub, gaussian_kernel, xwt, ywt,
                           kernel_shape[0], ycen_cut, sigma_y, axis=1)
     
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter('ignore', RuntimeWarning)
-        roundness2 = 2.0 * (hx - hy) / (hx + hy) if (hx + hy) != 0 else np.nan
+   
+    roundness2 = 2.0 * (hx - hy) / (hx + hy) if (hx + hy) != 0 else np.nan
     
     # ========== QFIT (Quality of Fit) ==========
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter('ignore', RuntimeWarning)
-        sum_model = np.sum(np.abs(model * mask))
-        sum_data = np.sum(np.abs(data_bkgsub * mask))
-        qfit = sum_model / sum_data if sum_data != 0 else np.nan
+   
+    sum_model = np.sum(np.abs(model * mask))
+    sum_data = np.sum(np.abs(data_bkgsub * mask))
+    qfit = sum_model / sum_data if sum_data != 0 else np.nan
     
     # ========== CFIT (Reduced Chi-squared) ==========
     residual = data_bkgsub - model
     
-    with np.warnings.catch_warnings():
-        np.warnings.simplefilter('ignore', RuntimeWarning)
-        mask_good = (model > 0.01 * np.nanmax(model)) & mask
-        if np.any(mask_good):
-            chi_squared = np.sum((residual[mask_good]**2) / np.abs(model[mask_good]))
-            dof = np.sum(mask_good) - 4  # 4 free parameters (x, y, major, minor)
-            cfit = chi_squared / dof if dof > 0 else np.nan
-        else:
-            cfit = np.nan
+
+    mask_good = (model > 0.01 * np.nanmax(model)) & mask
+    if np.any(mask_good):
+        chi_squared = np.sum((residual[mask_good]**2) / np.abs(model[mask_good]))
+        dof = np.sum(mask_good) - 4  # 4 free parameters (x, y, major, minor)
+        cfit = chi_squared / dof if dof > 0 else np.nan
+    else:
+        cfit = np.nan
     
     return {
         'roundness1': roundness1,
